@@ -15,6 +15,14 @@ export function getNeonAuthClient(): StarAfricaLogisticsNeonAuthClient {
   return authClient;
 }
 
+const STAR_AFRICA_GITHUB_PAGES_PATH = "/Mdanson27-Star-Africa-Logistics-Limited/";
+
 export function getAuthCallbackUrl(): string {
-  return new URL(import.meta.env.BASE_URL || "/", window.location.origin).toString();
+  const basePath = window.location.hostname.endsWith(".github.io")
+    ? STAR_AFRICA_GITHUB_PAGES_PATH
+    : import.meta.env.BASE_URL || "/";
+  const callbackUrl = new URL(basePath, window.location.origin);
+  callbackUrl.search = "";
+  callbackUrl.hash = "";
+  return callbackUrl.toString();
 }

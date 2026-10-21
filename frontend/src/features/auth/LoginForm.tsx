@@ -240,7 +240,7 @@ export const LoginForm: React.FC = () => {
       </div>
 
       <div className="mb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#DC1D2D]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#E62E3E]">
           {brand.companyName}
         </p>
         <h2 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[#07233c] dark:text-white">
@@ -272,7 +272,7 @@ export const LoginForm: React.FC = () => {
       <div className="mt-2 flex justify-center">
         <a
           href={`tel:${brand.administratorPhone}`}
-          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#d8e0ea] px-3 text-[11px] font-semibold text-[#022E55] transition hover:border-[#b8c7d6] hover:bg-[#f8fafc] hover:text-[#DC1D2D] dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#d8e0ea] px-3 text-[11px] font-semibold text-[#0A4F82] transition hover:border-[#b8c7d6] hover:bg-[#f8fafc] hover:text-[#E62E3E] dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
         >
           <PhoneCall className="h-3.5 w-3.5" />
           Contact administrator
@@ -325,7 +325,7 @@ export const LoginForm: React.FC = () => {
             </label>
             <button
               type="button"
-              className="text-xs font-semibold text-[#022E55] transition hover:text-[#DC1D2D] dark:text-white/75 dark:hover:text-white"
+              className="text-xs font-semibold text-[#0A4F82] transition hover:text-[#E62E3E] dark:text-white/75 dark:hover:text-white"
               onClick={openPasswordReset}
             >
               Set / forgot password
@@ -359,7 +359,7 @@ export const LoginForm: React.FC = () => {
         <Button
           type="submit"
           variant="primary"
-          className="mt-1 h-11 w-full rounded-xl bg-[#022E55] font-semibold shadow-[0_12px_30px_rgba(2,46,85,0.16)] transition hover:-translate-y-0.5 hover:bg-[#063d6e] hover:shadow-[0_16px_34px_rgba(2,46,85,0.20)] dark:bg-[#DC1D2D] dark:hover:bg-[#ef3040]"
+          className="mt-1 h-11 w-full rounded-xl star-africa-primary-action font-semibold transition hover:-translate-y-0.5"
           loading={isLoading}
         >
           Sign in

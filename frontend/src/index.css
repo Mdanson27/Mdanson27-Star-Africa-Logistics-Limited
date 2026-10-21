@@ -47,10 +47,10 @@
     --popover: 210 55% 10%;
     --popover-foreground: 210 25% 96%;
 
-    --primary: 355 77% 55%;
+    --primary: 207 74% 48%;
     --primary-foreground: 0 0% 100%;
     --brand-red: 355 77% 55%;
-    --brand-navy: 208 82% 60%;
+    --brand-navy: 207 74% 48%;
 
     --secondary: 210 40% 15%;
     --secondary-foreground: 210 25% 96%;
@@ -62,11 +62,11 @@
     --destructive-foreground: 0 0% 100%;
     --border: 210 35% 18%;
     --input: 210 35% 18%;
-    --ring: 355 77% 55%;
+    --ring: 207 74% 48%;
 
     --sidebar: 210 60% 8%;
     --sidebar-foreground: 210 25% 96%;
-    --sidebar-primary: 355 77% 55%;
+    --sidebar-primary: 207 74% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 42% 14%;
     --sidebar-accent-foreground: 210 25% 96%;
@@ -96,7 +96,7 @@
   }
 }
 
-@keyframes bertcom-gradient-flow {
+@keyframes star-africa-gradient-flow {
   0% {
     background-position: 0% 50%;
   }
@@ -108,7 +108,7 @@
   }
 }
 
-@keyframes bertcom-mascot-float {
+@keyframes star-africa-mascot-float {
   0%,
   100% {
     transform: translateY(0) rotate(-1deg);
@@ -118,27 +118,27 @@
   }
 }
 
-.bertcom-gradient-word {
+.star-africa-gradient-word {
   background: linear-gradient(
     90deg,
     #ffffff 0%,
     #f2f6fb 16%,
-    #DC1D2D 36%,
+    #E62E3E 36%,
     #ffffff 54%,
-    #5a9bd0 72%,
-    #DC1D2D 88%,
+    #68AEE0 72%,
+    #E62E3E 88%,
     #ffffff 100%
   );
   background-size: 240% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: bertcom-gradient-flow 7s ease-in-out infinite;
+  animation: star-africa-gradient-flow 7s ease-in-out infinite;
   text-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
 }
 
-.bertcom-mascot-float {
-  animation: bertcom-mascot-float 4.4s ease-in-out infinite;
+.star-africa-mascot-float {
+  animation: star-africa-mascot-float 4.4s ease-in-out infinite;
 }
 
 
@@ -166,4 +166,74 @@
     width: 0;
     height: 0;
   }
+}
+
+@keyframes star-africa-surface-flow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.star-africa-auth-panel {
+  background:
+    radial-gradient(circle at 14% 22%, rgba(230, 46, 62, 0.18), transparent 32%),
+    radial-gradient(circle at 86% 74%, rgba(104, 174, 224, 0.22), transparent 38%),
+    linear-gradient(135deg, #062b4a 0%, #083b65 45%, #0a4f82 72%, #052a49 100%);
+  background-size: 180% 180%;
+  animation: star-africa-surface-flow 14s ease-in-out infinite;
+}
+
+.star-africa-auth-content {
+  background:
+    radial-gradient(circle at 86% 12%, rgba(104, 174, 224, 0.08), transparent 28%),
+    radial-gradient(circle at 8% 88%, rgba(230, 46, 62, 0.055), transparent 30%),
+    #f7fafc;
+}
+
+.dark .star-africa-auth-content {
+  background:
+    radial-gradient(circle at 84% 10%, rgba(104, 174, 224, 0.11), transparent 30%),
+    radial-gradient(circle at 10% 90%, rgba(230, 46, 62, 0.07), transparent 32%),
+    #06111d;
+}
+
+.star-africa-primary-action {
+  color: white;
+  background: linear-gradient(105deg, #0a4f82 0%, #176ea5 50%, #e62e3e 135%);
+  background-size: 160% 100%;
+  box-shadow: 0 14px 34px rgba(10, 79, 130, 0.22);
+}
+
+.star-africa-primary-action:hover {
+  background-position: 100% 50%;
+  box-shadow: 0 18px 38px rgba(10, 79, 130, 0.3);
+}
+
+.star-africa-sidebar {
+  background: linear-gradient(180deg, rgba(104, 174, 224, 0.035), transparent 22%), hsl(var(--sidebar));
+}
+
+.dark .star-africa-sidebar {
+  background: radial-gradient(circle at 50% 0%, rgba(104, 174, 224, 0.09), transparent 26%), linear-gradient(180deg, #061524 0%, #07111d 100%);
+}
+
+.star-africa-nav-active {
+  background: linear-gradient(100deg, #0a4f82 0%, #176ea5 68%, #e62e3e 145%);
+  box-shadow: 0 8px 24px rgba(10, 79, 130, 0.18);
+}
+
+.star-africa-topbar {
+  background: color-mix(in srgb, hsl(var(--background)) 91%, #68aee0 9%);
+}
+
+.dark .star-africa-topbar {
+  background: rgba(6, 17, 29, 0.94);
+  box-shadow: inset 0 -1px 0 rgba(104, 174, 224, 0.08);
+}
+
+.star-africa-footer {
+  background: linear-gradient(90deg, transparent, rgba(104, 174, 224, 0.035), transparent);
+}
+
+.star-africa-loading {
+  background: radial-gradient(circle at 30% 30%, rgba(104, 174, 224, 0.12), transparent 34%), radial-gradient(circle at 70% 70%, rgba(230, 46, 62, 0.08), transparent 34%), hsl(var(--background));
 }
