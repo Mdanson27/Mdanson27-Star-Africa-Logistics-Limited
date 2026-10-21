@@ -1,0 +1,116 @@
+import logging
+import os
+import sys
+import time
+from logging.handlers import RotatingFileHandler
+
+import structlog
+from litestar.enums import ScopeType
+from litestar.middleware.base import AbstractMiddleware
+from litestar.types import ASGIApp, Message, Receive, Scope, Send
+
+from app.core.settings import settings
+
+
+def setup_logging() -> None:
+    log_dir = "logs"
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            os.path.join(log_dir, "application.log"),
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=5,
+            encoding="utf-8",
+        )
+        handlers.append(file_handler)
+    except OSError:
+        pass
+
+    # Root standard logger configuration
+    log_level = logging.DEBUG if settings.DEBUG else logging.INFO
+
+    logging.basicConfig(
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        level=log_level,
+        handlers=handlers,
+        force=True,
+    )
+
+    # Structlog processing pipeline
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
+
+    if settings.ENVIRONMENT == "production":
+        processors = shared_processors + [structlog.processors.JSONRenderer()]
+    else:
+        processors = shared_processors + [structlog.dev.ConsoleRenderer(colors=True)]
+
+    structlog.configure(
+        processors=processors,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+
+logger = structlog.get_logger("litestar")
+
+
+def extract_client_ip(scope: Scope) -> str:
+    """Extract real client IP prioritized by Cloudflare, X-Forwarded-For, or ASGI client."""
+    headers = scope.get("headers", [])
+    header_map = {k.lower(): v.decode("utf-8", errors="ignore").strip() for k, v in headers}
+
+    if cf_ip := header_map.get("cf-connecting-ip"):
+        return cf_ip
+
+    if xff := header_map.get("x-forwarded-for"):
+        return xff.split(",")[0].strip()
+
+    client = scope.get("client")
+    if client and len(client) > 0 and client[0]:
+        return str(client[0])
+
+    return "127.0.0.1"
+
+
+class RequestLoggingMiddleware(AbstractMiddleware):
+    """ASGI Middleware to log every incoming HTTP request/response cycle in real time."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+        self.logger = structlog.get_logger("api.access")
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != ScopeType.HTTP:
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        method = scope.get("method", "GET")
+        client_ip = extract_client_ip(scope)
+        start_time = time.monotonic()
+        status_code = 200
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 200)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracking_send)
+        finally:
+            duration_ms = round((time.monotonic() - start_time) * 1000, 2)
+            # Instantly flush log line to standard stdout for docker/podman logs
+            sys.stdout.write(
+                f'[INFO] {client_ip} - "{method} {path} HTTP/{scope.get("http_version", "1.1")}" {status_code} ({duration_ms}ms)\n'
+            )
+            sys.stdout.flush()

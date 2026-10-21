@@ -1,0 +1,156 @@
+# ==============================================================================
+# Star Africa Logistics OS — Git Ignore Rules
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Environment & Secrets (NEVER COMMIT SENSITIVE SECRETS)
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.testing.example
+!.env.example.jinja
+!.env.jinja
+*.env
+
+# ------------------------------------------------------------------------------
+# Python & Backend Runtime Artifacts
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing, Coverage & Quality Reports
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+reports/
+junit.xml
+
+# ------------------------------------------------------------------------------
+# Node.js & Frontend Build Artifacts
+# ------------------------------------------------------------------------------
+
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+frontend/dist/
+dist/
+.vite/
+.astro/
+.output/
+.turbo/
+
+
+# ------------------------------------------------------------------------------
+# Databases, Volumes & Backups
+# ------------------------------------------------------------------------------
+backups/*.sql.gz
+backups/*.dump
+backups/*.sql
+storage/
+pgdata/
+valkeydata/
+*.sqlite3
+*.db
+
+# ------------------------------------------------------------------------------
+# Logs, Process IDs & Container Runtime
+# ------------------------------------------------------------------------------
+logs/
+**/logs/
+backend/logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+acme.json
+
+
+# ------------------------------------------------------------------------------
+# Operating Systems & IDE Workspace Configurations
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ------------------------------------------------------------------------------
+# Neon local project state
+# ------------------------------------------------------------------------------
+.neon/
+
+# ------------------------------------------------------------------------------
+# Internal Architectural Research & Proprietary Blueprints
+# ------------------------------------------------------------------------------
+DOMAIN_BLUEPRINT.md
+**/DOMAIN_BLUEPRINT.md
+docs/internal/
+docs/research/
+*.draft.md
+
+# ------------------------------------------------------------------------------
+# Reference Manuals & Internal Scaffolding Artifacts
+# ------------------------------------------------------------------------------
+references/
+PROJECT_IMPLEMENTATION_MANUAL.md
+*IMPLEMENTATION_MANUAL*.md
+*project_implementation*
+*project_implemenation*
+project_implementation*
+project_implemenation*

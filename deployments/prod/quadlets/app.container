@@ -1,0 +1,19 @@
+[Unit]
+Description=Litestar Enterprise API - Bertcom Africa Business Os
+After=postgres.service valkey.service
+
+[Container]
+ContainerName=bertcom-africa-business-os-backend
+Image=localhost/bertcom-africa-business-os-app:latest
+PublishPort=8000:8000
+Network=bertcom-africa-business-os.network
+EnvironmentFile=/etc/bertcom-africa-business-os/app.env
+Exec=granian --interface asgi app.main:app --host 0.0.0.0 --port 8000 --workers 4 --runtime-threads 2 --http auto --backlog 1024
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target default.target

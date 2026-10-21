@@ -1,0 +1,92 @@
+# Star Africa Logistics Operating System — local production-like testing
+#
+# Purpose:
+#   GitHub Pages -> Cloudflare Quick Tunnel -> localhost:8000
+#   API + SAQ worker -> Neon
+#   API + SAQ worker -> local Valkey
+#
+# Secrets belong in ../.env.testing and MUST NOT be committed.
+
+name: star-africa-local-testing
+
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: star-africa-testing-valkey
+    restart: unless-stopped
+    volumes:
+      - star_africa_testing_valkey:/data
+    networks:
+      star_africa_testing:
+        ipv4_address: 172.28.251.10
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: star-africa-api:testing
+    container_name: star-africa-testing-api
+    restart: unless-stopped
+    command: ["sh", "/app/scripts/start_api.sh"]
+    env_file:
+      - ../.env.testing
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      APP_BASE_URL: http://localhost:8000
+      CORS_ALLOWED_ORIGINS: https://mdanson27.github.io
+      VALKEY_URL: redis://172.28.251.10:6379/0
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - star_africa_testing
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    image: star-africa-api:testing
+    container_name: star-africa-testing-worker
+    restart: unless-stopped
+    command: ["sh", "/app/scripts/start_worker.sh"]
+    env_file:
+      - ../.env.testing
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      APP_BASE_URL: http://localhost:8000
+      CORS_ALLOWED_ORIGINS: https://mdanson27.github.io
+      VALKEY_URL: redis://172.28.251.10:6379/0
+    networks:
+      - star_africa_testing
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  star_africa_testing_valkey:
+
+
+networks:
+  star_africa_testing:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.251.0/24

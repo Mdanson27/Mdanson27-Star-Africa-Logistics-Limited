@@ -1,0 +1,21 @@
+[Unit]
+Description=TimescaleDB PostgreSQL Database - Bertcom Africa Business OS
+After=network-online.target local-fs.target
+
+[Container]
+ContainerName=bertcom-africa-business-os-postgres
+Image=docker.io/timescale/timescaledb-ha:pg16
+Network=bertcom-africa-business-os.network
+Volume=bertcom-africa-business-os-postgres.volume:/home/postgres/pgdata/data:Z
+Environment=POSTGRES_USER=bertcom_user
+EnvironmentFile=/etc/bertcom-africa-business-os/postgres.env
+Environment=POSTGRES_DB=bertcom_db
+PublishPort=5432:5432
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=Valkey High-Performance In-Memory Store - Bertcom Africa Business Os
+After=network-online.target local-fs.target
+
+[Container]
+ContainerName=bertcom-africa-business-os-valkey
+Image=docker.io/valkey/valkey:8-alpine
+Network=bertcom-africa-business-os.network
+PublishPort=6379:6379
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target default.target

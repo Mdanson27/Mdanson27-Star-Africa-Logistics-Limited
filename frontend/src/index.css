@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 216 45% 98%;
+    --foreground: 210 65% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 65% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 65% 12%;
+
+    /* Bertcom Africa brand: navy #022E55, red #DC1D2D */
+    --primary: 208 95% 17%;
+    --primary-foreground: 0 0% 100%;
+    --brand-red: 355 77% 49%;
+    --brand-navy: 208 95% 17%;
+
+    --secondary: 210 25% 95%;
+    --secondary-foreground: 208 95% 17%;
+    --muted: 216 30% 96%;
+    --muted-foreground: 213 18% 42%;
+    --accent: 355 100% 97%;
+    --accent-foreground: 355 77% 40%;
+    --destructive: 355 77% 49%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 24% 88%;
+    --input: 214 24% 88%;
+    --ring: 208 95% 17%;
+    --radius: 0.75rem;
+
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 210 65% 12%;
+    --sidebar-primary: 208 95% 17%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 38% 96%;
+    --sidebar-accent-foreground: 208 95% 17%;
+    --sidebar-border: 214 24% 90%;
+  }
+
+  .dark {
+    --background: 210 65% 7%;
+    --foreground: 210 25% 96%;
+    --card: 210 55% 10%;
+    --card-foreground: 210 25% 96%;
+    --popover: 210 55% 10%;
+    --popover-foreground: 210 25% 96%;
+
+    --primary: 355 77% 55%;
+    --primary-foreground: 0 0% 100%;
+    --brand-red: 355 77% 55%;
+    --brand-navy: 208 82% 60%;
+
+    --secondary: 210 40% 15%;
+    --secondary-foreground: 210 25% 96%;
+    --muted: 210 40% 15%;
+    --muted-foreground: 214 17% 69%;
+    --accent: 355 45% 16%;
+    --accent-foreground: 355 90% 78%;
+    --destructive: 355 77% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 35% 18%;
+    --input: 210 35% 18%;
+    --ring: 355 77% 55%;
+
+    --sidebar: 210 60% 8%;
+    --sidebar-foreground: 210 25% 96%;
+    --sidebar-primary: 355 77% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 42% 14%;
+    --sidebar-accent-foreground: 210 25% 96%;
+    --sidebar-border: 210 35% 18%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    background: hsl(var(--background));
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    @apply bg-background text-foreground;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--brand-red) / 0.18);
+    color: hsl(var(--foreground));
+  }
+}
+
+@keyframes bertcom-gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes bertcom-mascot-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+.bertcom-gradient-word {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #f2f6fb 16%,
+    #DC1D2D 36%,
+    #ffffff 54%,
+    #5a9bd0 72%,
+    #DC1D2D 88%,
+    #ffffff 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: bertcom-gradient-flow 7s ease-in-out infinite;
+  text-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.bertcom-mascot-float {
+  animation: bertcom-mascot-float 4.4s ease-in-out infinite;
+}
+
+
+@layer utilities {
+  .app-scrollbarless,
+  .app-scrollbarless * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .app-scrollbarless::-webkit-scrollbar,
+  .app-scrollbarless *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}

@@ -1,0 +1,495 @@
+# ==============================================================================
+# Bertcom Africa Business Os - Unified Control Plane
+# ==============================================================================
+
+SHELL := /bin/bash
+export PODMAN_COMPOSE_WARNING_LOGS := 0
+.DEFAULT_GOAL := help
+
+# ------------------------------------------------------------------------------
+# Terminal Styling
+# ------------------------------------------------------------------------------
+BLUE   := \033[0;34m
+GREEN  := \033[0;32m
+YELLOW := \033[1;33m
+RED    := \033[0;31m
+CYAN   := \033[0;36m
+BOLD   := \033[1m
+NC     := \033[0m # No Color
+
+# ------------------------------------------------------------------------------
+# Configurable Runtime Variables (Weak Assignments)
+# ------------------------------------------------------------------------------
+CONTAINER_ENGINE ?= docker
+COMPOSE_FILE     ?= -f config/podman-compose.yml
+ENV_FILE         ?= --env-file .env
+PROJECT_NAME     ?= $(shell grep -E '^COMPOSE_PROJECT_NAME=' .env 2>/dev/null | cut -d= -f2 | tr -d ' "' || echo "bertcom-africa-business-os")
+
+# Socket context for rootless Podman execution
+export CONTAINER_HOST ?= unix:///run/user/$(shell id -u)/podman/podman.sock
+
+# Execution wrappers
+COMPOSE_BASE  := $(CONTAINER_ENGINE) compose $(ENV_FILE) $(COMPOSE_FILE)
+EXEC_APP      := $(COMPOSE_BASE) exec -T app 2>/dev/null || $(CONTAINER_ENGINE) exec -u 10001 -i $(PROJECT_NAME)_backend
+EXEC_DB       := $(COMPOSE_BASE) exec -T postgres-db 2>/dev/null || $(CONTAINER_ENGINE) exec -u 1000 -i $(PROJECT_NAME)_postgres
+
+EXEC_FRONTEND := $(COMPOSE_BASE) exec -T frontend 2>/dev/null || $(CONTAINER_ENGINE) exec -i $(PROJECT_NAME)_frontend
+
+
+# Command argument overrides
+SERVICE ?= app
+TEST    ?= tests
+MSG     ?=
+FILE    ?=
+DB      ?=
+CONFIRM_LIVE_RESTORE ?= NO
+
+# ------------------------------------------------------------------------------
+# Help & Documentation
+# ------------------------------------------------------------------------------
+.PHONY: help
+help: ## Show this interactive help banner
+	@echo -e ""
+	@echo -e "$(BLUE)╔══════════════════════════════════════════════════════════════════════╗$(NC)"
+	@echo -e "$(BLUE)║   $(BOLD)Bertcom Africa Business Os — $(CONTAINER_ENGINE) Automation Engine$(NC)$(BLUE)          ║$(NC)"
+	@echo -e "$(BLUE)╚══════════════════════════════════════════════════════════════════════╝$(NC)"
+	@echo -e ""
+	@echo -e "$(CYAN)$(BOLD)Automated High-Level Workflows:$(NC)"
+	@echo -e "  $(GREEN)make setup$(NC)              # 1-Click Bootstrap: build, boot, migrate, seed, and sync SDK"
+	@echo -e "  $(GREEN)make dev$(NC)                # Developer Mode: boot mesh, apply migrations, sync SDK & tail logs"
+	@echo -e "  $(GREEN)make check$(NC)              # Full QA Gate: lint, format, pytest, zero-drift, frontend build"
+	@echo -e "  $(GREEN)make reset$(NC)              # Complete Clean Reset: wipe volumes, rebuild images, migrate & reseed"
+
+	@echo -e "  $(GREEN)make prod$(NC)               # Production Launch: boot stack with Cloudflare tunnel & trusted proxy"
+
+	@echo -e ""
+	@echo -e "$(YELLOW)$(BOLD)All Individual Targets:$(NC)"
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-22s$(NC) %s\n", $$1, $$2}'
+	@echo -e ""
+
+# ------------------------------------------------------------------------------
+# High-Level Automated Workflows (Compound Super-Targets)
+# ------------------------------------------------------------------------------
+.PHONY: setup bootstrap
+setup: bootstrap ## 1-Click Zero-Config Bootstrap: build, boot, migrate, seed superadmin, and sync SDK
+bootstrap:
+	@echo -e "$(BLUE)$(BOLD)══════════════════════════════════════════════════════════════════════$(NC)"
+	@echo -e "$(BLUE)$(BOLD)🚀 Launching Automated Platform Bootstrap via $(CONTAINER_ENGINE)...$(NC)"
+	@echo -e "$(BLUE)$(BOLD)══════════════════════════════════════════════════════════════════════$(NC)"
+	@if [ ! -f .env ]; then \
+		echo -e "$(YELLOW)Creating .env from .env.example with secure defaults...$(NC)"; \
+		cp .env.example .env; \
+	fi
+	@echo -e "$(BLUE)Step 1/6: Building container images...$(NC)"
+	@$(MAKE) build
+	@echo -e "$(BLUE)Step 2/6: Starting core container mesh in background...$(NC)"
+	@$(MAKE) up
+	@echo -e "$(BLUE)Step 3/6: Waiting for PostgreSQL readiness...$(NC)"
+	@for i in {1..30}; do \
+		if $(EXEC_DB) pg_isready -U $$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "bertcom_user") -d $$(grep POSTGRES_DB .env | cut -d= -f2 2>/dev/null || echo "bertcom_db") >/dev/null 2>&1; then \
+			echo -e "$(GREEN)✅ PostgreSQL is accepting connections$(NC)"; \
+			break; \
+		fi; \
+		echo -e "$(YELLOW)Waiting for database (attempt $$i/30)...$(NC)"; \
+		sleep 1; \
+	done
+	@echo -e "$(BLUE)Step 4/6: Applying database migrations...$(NC)"
+	@$(MAKE) migrate
+	@echo -e "$(BLUE)Step 5/6: Seeding initial superuser account...$(NC)"
+	@$(MAKE) seed
+
+	@echo -e "$(BLUE)Step 6/6: Synchronizing OpenAPI schema and TypeScript frontend client SDK...$(NC)"
+	@$(MAKE) frontend-sync
+
+	@echo -e ""
+	@echo -e "$(GREEN)$(BOLD)══════════════════════════════════════════════════════════════════════$(NC)"
+	@echo -e "$(GREEN)$(BOLD)🎉 Platform Bootstrap Complete & Fully Operational!$(NC)"
+	@echo -e "$(GREEN)$(BOLD)══════════════════════════════════════════════════════════════════════$(NC)"
+	@echo -e "  $(CYAN)• API & Docs UI:$(NC)    http://localhost:8000/docs"
+
+	@echo -e "  $(CYAN)• Prometheus:$(NC)       http://localhost:8000/metrics"
+
+	@echo -e "  $(CYAN)• Health Probes:$(NC)    http://localhost:8000/health/ready"
+	@echo -e "  $(CYAN)• Superadmin Email:$(NC) $$(grep FIRST_SUPERUSER_EMAIL .env | cut -d= -f2 2>/dev/null || echo 'ddaannson@gmail.com')"
+	@echo -e "  $(CYAN)• Tail live logs:$(NC)   make logs"
+	@echo -e ""
+
+.PHONY: dev
+dev: ## Daily Developer Mode: start mesh, apply migrations, sync SDK, and stream logs
+	@echo -e "$(BLUE)Starting developer mode with $(CONTAINER_ENGINE)...$(NC)"
+	@$(MAKE) up
+	@$(MAKE) migrate
+
+	@$(MAKE) frontend-sync
+
+	@$(MAKE) logs
+
+.PHONY: check verify
+check: verify ## Run full automated QA verification suite (lint, pytest, zero-drift, frontend build)
+verify:
+	@echo -e "$(BLUE)$(BOLD)Running full automated QA verification gate...$(NC)"
+	@$(MAKE) lint
+	@$(MAKE) test
+
+	@$(MAKE) check-client-drift
+	@$(MAKE) frontend-build
+
+	@echo -e "$(GREEN)$(BOLD)✅ All QA checks passed cleanly! Zero errors, zero schema drift.$(NC)"
+
+.PHONY: reset
+reset: ## Complete clean reset: wipe volumes, rebuild images, migrate & reseed
+	@echo -e "$(RED)$(BOLD)⚠️  CAUTION: This will destroy all database volumes and recreate the environment.$(NC)"
+	@read -p "Are you sure you want to proceed with full reset? [y/N] " -n 1 -r; \
+	echo ""; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$(MAKE) down-volumes; \
+		$(MAKE) setup; \
+	else \
+		echo -e "$(YELLOW)Reset aborted by user.$(NC)"; \
+	fi
+
+
+.PHONY: prod
+prod: prod-up ## Production Stack Launch: start all services with Cloudflare tunnel
+
+
+# ------------------------------------------------------------------------------
+# Stack Lifecycle Management
+# ------------------------------------------------------------------------------
+.PHONY: up
+up: ## Start all core mesh services in background
+	@echo -e "$(BLUE)Starting services with $(CONTAINER_ENGINE)...$(NC)"
+	@$(COMPOSE_BASE) up -d
+	@echo -e "$(GREEN)✅ Stack running. API available at http://localhost:8000$(NC)"
+
+
+.PHONY: prod-up
+prod-up: ## Start full production stack including Cloudflare tunnel
+	@echo -e "$(BLUE)Starting full production stack with Cloudflare tunnel...$(NC)"
+	@$(COMPOSE_BASE) --profile production up -d
+	@echo -e "$(GREEN)✅ Production stack and Cloudflare tunnel started$(NC)"
+
+.PHONY: prod-logs
+prod-logs: ## Stream production container logs including tunnel
+	@echo -e "$(YELLOW)Streaming production stack logs (including Cloudflare tunnel)...$(NC)"
+	@$(COMPOSE_BASE) --profile production logs -f
+
+
+.PHONY: up-dev
+up-dev: ## Rebuild and start container mesh in background with live volume mounts
+	@echo -e "$(BLUE)Building and starting development stack...$(NC)"
+	@$(COMPOSE_BASE) up -d --build
+	@echo -e "$(GREEN)✅ Development stack started$(NC)"
+
+
+.PHONY: worker
+worker: ## Start or ensure background task worker container is running
+	@echo -e "$(BLUE)Starting SAQ background worker container...$(NC)"
+	@$(COMPOSE_BASE) up -d worker
+	@echo -e "$(GREEN)✅ SAQ worker container is active$(NC)"
+
+.PHONY: worker-logs
+worker-logs: ## Tail live logs from SAQ distributed background task worker
+	@echo -e "$(BLUE)Tailing SAQ background worker logs...$(NC)"
+	@$(COMPOSE_BASE) logs -f --tail=200 worker
+
+
+.PHONY: down
+down: ## Stop and remove stack containers (preserves database volumes)
+	@echo -e "$(YELLOW)Stopping stack containers...$(NC)"
+	@$(COMPOSE_BASE) stop -t 5 2>/dev/null || true
+	@$(COMPOSE_BASE) down 2>/dev/null || ( \
+		podman unshare -- killall -9 slirp4netns pasta 2>/dev/null || true; \
+		$(COMPOSE_BASE) down 2>/dev/null || true \
+	)
+	@echo -e "$(GREEN)✅ Containers stopped cleanly (Database volumes preserved)$(NC)"
+
+.PHONY: down-volumes
+down-volumes: ## Stop stack and PERMANENTLY DESTROY all database data volumes
+	@echo -e "$(RED)⚠️  WARNING: Deleting all persistent database and cache volumes!$(NC)"
+	@$(COMPOSE_BASE) down -v
+	@echo -e "$(GREEN)✅ Containers and persistent volumes wiped clean$(NC)"
+
+.PHONY: down-check
+down-check: ## Stop project and verify no lingering containers remain on host
+	@$(COMPOSE_BASE) down
+	@echo -e "$(YELLOW)Checking for remaining project containers...$(NC)"
+	@$(CONTAINER_ENGINE) ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' | grep -E 'app|worker|postgres|valkey|traefik|pgbouncer' || echo -e "$(GREEN)✅ No matching project containers running$(NC)"
+
+.PHONY: stop
+stop: ## Stop all services or a specific target (e.g., make stop SERVICE=app)
+	@$(COMPOSE_BASE) stop $(SERVICE)
+
+.PHONY: start
+start: ## Start stopped services (e.g., make start SERVICE=app)
+	@$(COMPOSE_BASE) start $(SERVICE)
+
+.PHONY: restart
+restart: ## Restart services (e.g., make restart SERVICE=app)
+	@echo -e "$(YELLOW)Restarting service: $(SERVICE)...$(NC)"
+	@$(COMPOSE_BASE) restart $(SERVICE)
+	@echo -e "$(GREEN)✅ Restart complete$(NC)"
+
+# ------------------------------------------------------------------------------
+# Observability & Live Log Streaming
+# ------------------------------------------------------------------------------
+.PHONY: logs
+logs: ## Stream live logs from all stack containers in real time
+	@echo -e "$(YELLOW)Streaming live stack logs (Ctrl+C to exit)...$(NC)"
+	@$(COMPOSE_BASE) logs -f --tail=100
+
+.PHONY: logs-api
+logs-api: ## Stream live logs specifically from the Litestar backend API
+	@$(COMPOSE_BASE) logs -f --tail=100 app
+
+
+.PHONY: logs-frontend
+logs-frontend: ## Stream live logs from Vite frontend dev server
+	@$(COMPOSE_BASE) logs -f --tail=100 frontend
+
+
+
+.PHONY: logs-worker
+logs-worker: ## Stream live logs from the SAQ background worker
+	@$(COMPOSE_BASE) logs -f --tail=100 worker
+
+
+.PHONY: logs-db
+logs-db: ## Stream live logs from PostgreSQL / TimescaleDB
+	@$(COMPOSE_BASE) logs -f --tail=100 postgres-db
+
+
+.PHONY: logs-traefik
+logs-traefik: ## Stream live access logs from the Traefik edge proxy
+	@$(COMPOSE_BASE) logs -f --tail=100 traefik
+
+
+.PHONY: clean-logs
+clean-logs: ## Recreate containers to flush stale log output
+	@echo -e "$(YELLOW)Flushing container log buffers...$(NC)"
+	@$(MAKE) down
+	@$(MAKE) up
+	@echo -e "$(GREEN)✅ Clean stack running with empty log buffers$(NC)"
+
+.PHONY: ps
+ps: ## List status of all mesh containers
+	@$(COMPOSE_BASE) ps
+
+.PHONY: health
+health: ## Perform HTTP health check against local Litestar instance
+	@echo -e "$(YELLOW)Checking backend health...$(NC)"
+	@curl -fsS http://localhost:8000/health/ready >/dev/null && echo -e "$(GREEN)✅ Backend is healthy & ready$(NC)" || echo -e "$(RED)❌ Backend not ready$(NC)"
+
+
+.PHONY: metrics
+metrics: ## Fetch Prometheus metrics from /metrics endpoint
+	@curl -s http://localhost:8000/metrics
+
+
+.PHONY: stats
+stats: ## Stream real-time resource utilization (CPU, Memory, I/O)
+	@$(CONTAINER_ENGINE) stats --no-stream
+
+.PHONY: shell
+shell: ## Open an interactive bash shell inside container (e.g., make shell SERVICE=app)
+	@$(COMPOSE_BASE) exec $(SERVICE) bash
+
+# ------------------------------------------------------------------------------
+# Container Image Builds
+# ------------------------------------------------------------------------------
+.PHONY: build
+build: ## Build standard container images defined in Compose
+	@echo -e "$(BLUE)Building images with $(CONTAINER_ENGINE)...$(NC)"
+	@$(COMPOSE_BASE) build
+
+.PHONY: build-backend
+build-backend: ## Build only the backend container image from root context
+	@echo -e "$(BLUE)Building backend image (config/Containerfile)...$(NC)"
+	@$(CONTAINER_ENGINE) build -t localhost/bertcom-africa-business-os-app:latest -f config/Containerfile backend/
+	@echo -e "$(GREEN)✅ Backend build finished$(NC)"
+
+.PHONY: build-backend-clean
+build-backend-clean: ## Build backend container with no cache
+	@$(CONTAINER_ENGINE) build --no-cache -t localhost/bertcom-africa-business-os-app:latest -f config/Containerfile backend/
+
+.PHONY: pull
+pull: ## Pull latest base images (TimescaleDB, Valkey) from registries
+	@$(COMPOSE_BASE) pull
+
+# ------------------------------------------------------------------------------
+# Database & Migration Operations
+# ------------------------------------------------------------------------------
+.PHONY: migrate
+migrate: ## Apply all pending Alembic migrations inside container
+	@echo -e "$(YELLOW)Applying database migrations...$(NC)"
+	@$(EXEC_APP) alembic upgrade head
+	@echo -e "$(GREEN)✅ Migrations up to date$(NC)"
+
+.PHONY: migrate-down
+migrate-down: ## Rollback one Alembic migration revision (-1)
+	@echo -e "$(YELLOW)Rolling back one migration...$(NC)"
+	@$(EXEC_APP) alembic downgrade -1
+	@echo -e "$(GREEN)✅ Migration rollback complete$(NC)"
+
+.PHONY: migration-create
+migration-create: ## Generate new autodetected migration (e.g., make migration-create MSG="add_asset_table")
+	@if [ -z "$(MSG)" ]; then \
+		echo -e "$(RED)❌ MSG parameter required.$(NC) Usage: make migration-create MSG=\"description\""; \
+		exit 1; \
+	fi
+	@$(EXEC_APP) alembic revision --autogenerate -m "$(MSG)"
+	@echo -e "$(GREEN)✅ Migration script created in backend/alembic/versions/$(NC)"
+
+.PHONY: migrate-history
+migrate-history: ## Display full Alembic migration timeline and revision heads
+	@$(EXEC_APP) alembic history --verbose
+
+.PHONY: seed
+seed: ## Seed initial platform superuser from environment settings
+	@echo -e "$(YELLOW)Seeding superuser account...$(NC)"
+	@$(EXEC_APP) python scripts/seed_initial_data.py
+	@echo -e "$(GREEN)✅ Seeding script finished$(NC)"
+
+.PHONY: db-shell
+db-shell: ## Open direct interactive psql console on running PostgreSQL container
+	@$(EXEC_DB) psql -U $$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "bertcom_user") -d $$(grep POSTGRES_DB .env | cut -d= -f2 2>/dev/null || echo "bertcom_db")
+
+# ------------------------------------------------------------------------------
+# Transactional Outbox & DLQ Operations
+# ------------------------------------------------------------------------------
+
+.PHONY: outbox-relay
+outbox-relay: ## Perform a manual sweep to relay pending outbox events to message broker
+	@echo -e "$(BLUE)Sweeping pending outbox events...$(NC)"
+	@$(EXEC_APP) python scripts/outbox_cli.py sweep
+
+.PHONY: dlq-replay
+dlq-replay: ## Replay quarantined events from Dead Letter Queue back to Outbox
+	@echo -e "$(YELLOW)Replaying Dead Letter Queue (DLQ) events...$(NC)"
+	@$(EXEC_APP) python scripts/outbox_cli.py replay
+
+.PHONY: outbox-status
+outbox-status: ## Check counts of pending outbox and dead letter events
+	@$(EXEC_APP) python scripts/outbox_cli.py status
+
+
+# ------------------------------------------------------------------------------
+# Database Backup & Disaster Recovery
+# ------------------------------------------------------------------------------
+.PHONY: db-backup
+db-backup: ## Dump compressed PostgreSQL custom-format archive into backups/
+	@mkdir -p backups
+	@echo -e "$(YELLOW)Extracting compressed PostgreSQL backup...$(NC)"
+	@$(EXEC_DB) pg_dump -U $$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "bertcom_user") $$(grep POSTGRES_DB .env | cut -d= -f2 2>/dev/null || echo "bertcom_db") | gzip -9 > backups/db_backup_$$(date +%Y%m%d_%H%M%S).sql.gz
+	@echo -e "$(GREEN)✅ Backup saved to backups/$(NC)"
+
+.PHONY: db-backup-verify
+db-backup-verify: ## Test integrity of a compressed backup file (e.g., make db-backup-verify FILE=backups/db_xxx.sql.gz)
+	@if [ -z "$(FILE)" ]; then \
+		echo -e "$(RED)❌ FILE is required.$(NC) Usage: make db-backup-verify FILE=backups/your_backup.sql.gz"; \
+		exit 1; \
+	fi
+	@gzip -t "$(FILE)" && echo -e "$(GREEN)✅ Gzip stream valid$(NC)"
+	@gzip -dc "$(FILE)" | head -n 15
+
+.PHONY: db-restore
+db-restore: ## Restore backup into target DB (e.g., make db-restore FILE=backups/db.sql.gz DB=app_db)
+	@if [ -z "$(FILE)" ] || [ ! -f "$(FILE)" ]; then \
+		echo -e "$(RED)❌ Valid FILE path required.$(NC) Usage: make db-restore FILE=backups/db.sql.gz DB=target_db"; \
+		exit 1; \
+	fi
+	@if [ -z "$(DB)" ]; then \
+		echo -e "$(RED)❌ DB is required.$(NC) Specify target database (e.g., DB=app_restore or DB=bertcom_db)"; \
+		exit 1; \
+	fi
+	@if [ "$(DB)" = "$$(grep POSTGRES_DB .env | cut -d= -f2 2>/dev/null || echo 'bertcom_db')" ] && [ "$(CONFIRM_LIVE_RESTORE)" != "YES" ]; then \
+		echo -e "$(RED)❌ Refusing direct restore over live database without explicit confirmation.$(NC)"; \
+		echo -e "$(YELLOW)Pass CONFIRM_LIVE_RESTORE=YES or restore to an alternate database first.$(NC)"; \
+		exit 1; \
+	fi
+	@echo -e "$(YELLOW)Restoring $(FILE) into $(DB)...$(NC)"
+	@gzip -dc "$(FILE)" | $(EXEC_DB) psql -U $$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "bertcom_user") -d "$(DB)"
+	@echo -e "$(GREEN)✅ Database restored$(NC)"
+
+# ------------------------------------------------------------------------------
+# Schema Sync & TypeScript Frontend Client Generation
+# ------------------------------------------------------------------------------
+
+.PHONY: export-schema
+export-schema: ## Export Litestar OpenAPI 3.1 schema to frontend/openapi.json
+	@echo -e "$(YELLOW)Extracting OpenAPI schema...$(NC)"
+	@$(EXEC_APP) python -c "from app.main import app; import json; print(json.dumps(app.openapi_schema.to_schema(), indent=2, sort_keys=True))" > frontend/openapi.json
+	@echo -e "$(GREEN)✅ Exported to frontend/openapi.json$(NC)"
+
+.PHONY: frontend-sync
+frontend-sync: export-schema ## Compile TypeScript fetch client from exported OpenAPI schema
+	@if [ -d "frontend" ]; then \
+		echo -e "$(BLUE)Generating frontend TypeScript client via @hey-api/openapi-ts...$(NC)"; \
+		$(EXEC_FRONTEND) npm run generate-client 2>/dev/null || (cd frontend && npm run generate-client); \
+		echo -e "$(GREEN)✅ Frontend API bindings updated in frontend/src/client/$(NC)"; \
+	else \
+		echo -e "$(YELLOW)Frontend directory not present. Skipping TypeScript generation.$(NC)"; \
+	fi
+
+.PHONY: check-client-drift
+check-client-drift: export-schema ## Validate zero drift between backend OpenAPI schema and frontend TypeScript client
+	@echo -e "$(BLUE)Validating zero client SDK schema drift...$(NC)"
+	@if [ -d "frontend" ]; then \
+		$(EXEC_FRONTEND) npm run generate-client 2>/dev/null || (cd frontend && npm run generate-client); \
+		if ! git diff --exit-code frontend/src/client frontend/openapi.json > /dev/null 2>&1; then \
+			echo -e "$(RED)❌ ERROR: Frontend SDK schema drift detected!$(NC)"; \
+			echo -e "$(YELLOW)Run 'make frontend-sync' and commit the updated client bindings.$(NC)"; \
+			git diff frontend/src/client frontend/openapi.json; \
+			exit 1; \
+		fi; \
+		echo -e "$(GREEN)✅ Zero SDK drift verified. Client bindings match backend OpenAPI schema exactly.$(NC)"; \
+	fi
+
+.PHONY: frontend-build
+frontend-build: ## Build production frontend distribution bundle inside container
+	@echo -e "$(BLUE)Building production frontend bundle...$(NC)"
+	@$(EXEC_FRONTEND) npm run build 2>/dev/null || (cd frontend && npm run build)
+	@echo -e "$(GREEN)✅ Frontend build complete in frontend/dist/$(NC)"
+
+
+# ------------------------------------------------------------------------------
+# Cloudflare Tunnel
+# ------------------------------------------------------------------------------
+
+.PHONY: tunnel-status
+tunnel-status: ## Check Cloudflare Tunnel container health and status
+	@echo -e "$(YELLOW)Checking Cloudflare Tunnel status...$(NC)"
+	@$(COMPOSE_BASE) ps cloudflared
+
+.PHONY: tunnel-logs
+tunnel-logs: ## Tail live logs from the Cloudflare Tunnel container
+	@$(COMPOSE_BASE) logs -f --tail=200 cloudflared
+
+.PHONY: tunnel-restart
+tunnel-restart: ## Restart the Cloudflare Tunnel container
+	@$(COMPOSE_BASE) restart cloudflared
+
+
+# ------------------------------------------------------------------------------
+# Quality Assurance & Testing
+# ------------------------------------------------------------------------------
+.PHONY: lint
+lint: ## Run Ruff linter and formatter checks inside backend container
+	@echo -e "$(BLUE)Running Ruff linter and format check...$(NC)"
+	@$(EXEC_APP) ruff check src tests
+	@$(EXEC_APP) ruff format --check src tests
+	@echo -e "$(GREEN)✅ Ruff lint and formatting passed cleanly$(NC)"
+
+.PHONY: test
+test: ## Run test suite inside app container using isolated database subtransactions
+	@echo -e "$(BLUE)Executing pytest suite inside container...$(NC)"
+	@$(EXEC_APP) pytest $(TEST) -v
+
+# ------------------------------------------------------------------------------
+# Host Maintenance & System Cleanup
+# ------------------------------------------------------------------------------
+.PHONY: prune
+prune: ## Prune stopped containers, dangling images, and build caches
+	@echo -e "$(YELLOW)Pruning unused $(CONTAINER_ENGINE) system resources...$(NC)"
+	@$(CONTAINER_ENGINE) system prune -f
+	@echo -e "$(GREEN)✅ System pruned$(NC)"
