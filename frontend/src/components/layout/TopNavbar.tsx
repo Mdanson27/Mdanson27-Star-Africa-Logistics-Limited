@@ -17,7 +17,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onToggleSidebar, onRefresh
   const refreshing = isRefreshing || (isPlatformAdmin && isChecking);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-6 backdrop-blur">
+    <header className="star-africa-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border px-6 backdrop-blur">
       <Button variant="ghost" size="sm" onClick={onToggleSidebar} className="h-9 w-9 p-0 text-muted-foreground">
         <Menu className="h-5 w-5" />
       </Button>

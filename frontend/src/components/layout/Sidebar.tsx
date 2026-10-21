@@ -81,17 +81,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
     <button key={id} onClick={() => onSelectTab(id)}
       className={cn(
         "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-        currentTab === id ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+        currentTab === id ? "star-africa-nav-active text-white" : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
         !isOpen && "justify-center px-0",
       )}>
-      <Icon className={cn("h-4 w-4 shrink-0", currentTab === id && "text-primary")} />
+      <Icon className={cn("h-4 w-4 shrink-0", currentTab === id && "text-white")} />
       {isOpen && <span>{label}</span>}
     </button>
   );
 
   return (
     <aside className={cn(
-      "fixed inset-y-0 left-0 z-40 flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-200",
+      "star-africa-sidebar fixed inset-y-0 left-0 z-40 flex flex-col border-r border-sidebar-border text-sidebar-foreground transition-all duration-200",
       isOpen ? "w-64" : "w-20",
     )}>
       <div className={cn("flex h-24 shrink-0 items-center border-b border-sidebar-border", isOpen ? "justify-start px-5" : "justify-center px-2")}>
