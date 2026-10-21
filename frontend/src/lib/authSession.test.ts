@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const neonMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -109,4 +109,3 @@ describe("Neon access-token session cache", () => {
     expect(session.getCachedAccessToken()).toBe(token);
   });
 });
-
