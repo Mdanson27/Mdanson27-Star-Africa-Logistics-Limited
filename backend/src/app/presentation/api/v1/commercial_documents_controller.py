@@ -703,11 +703,14 @@ class CommercialDocumentsController(Controller):
             raise ClientException(detail="A valid recipient email is required.", status_code=400)
         if not settings.smtp_configured:
             raise ClientException(
-                detail="Email sending is not configured on the Star Africa Logistics server.", status_code=503
+                detail="Email sending is not configured on the Star Africa Logistics server.",
+                status_code=503,
             )
         pdf_bytes = await asyncio.to_thread(get_object_bytes, item.storage_key)
         subject = (data.subject or f"{item.title} - Star Africa Logistics Limited").strip()
-        note = (data.message or "Please find the requested Star Africa Logistics document attached.").strip()
+        note = (
+            data.message or "Please find the requested Star Africa Logistics document attached."
+        ).strip()
         await mail_service.send_message(
             EmailMessage(
                 to_address=recipient,
