@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const neonMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -71,7 +71,7 @@ describe("Neon access-token session cache", () => {
   it("does not reuse an expired cached token after refresh", async () => {
     const expired = jwtExpiringIn(-60);
     const fresh = jwtExpiringIn(3600);
-    localStorage.setItem("access_token", expired);
+    localStorage.setItem("starafrica.access_token", expired);
     neonMocks.getSession.mockResolvedValue(sessionWithToken(fresh));
 
     const session = await import("@/lib/authSession");
@@ -100,7 +100,7 @@ describe("Neon access-token session cache", () => {
 
   it("falls back to a still-valid cached JWT when Neon session refresh is unavailable", async () => {
     const token = jwtExpiringIn(3600);
-    localStorage.setItem("access_token", token);
+    localStorage.setItem("starafrica.access_token", token);
     neonMocks.getSession.mockResolvedValue({ data: null, error: { message: "Unauthorized" } });
 
     const session = await import("@/lib/authSession");
@@ -109,3 +109,4 @@ describe("Neon access-token session cache", () => {
     expect(session.getCachedAccessToken()).toBe(token);
   });
 });
+
