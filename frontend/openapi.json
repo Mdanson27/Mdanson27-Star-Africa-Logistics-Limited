@@ -7687,7 +7687,7 @@
   },
   "info": {
     "description": "Enterprise Platform API with OAuth2 Password flow, Bearer JWT authorization, and RBAC control.",
-    "title": "Bertcom Africa Business OS API",
+    "title": "Star Africa Logistics Operating System API",
     "version": "1.0.0"
   },
   "openapi": "3.1.0",
@@ -16547,7 +16547,7 @@
     "/api/v1/users/assignable": {
       "get": {
         "deprecated": false,
-        "description": "Return active Bertcom users that may be assigned to projects and tasks.",
+        "description": "Return active Star Africa Logistics users that may be assigned to projects and tasks.",
         "operationId": "ApiV1UsersAssignableListAssignableUsers",
         "responses": {
           "200": {

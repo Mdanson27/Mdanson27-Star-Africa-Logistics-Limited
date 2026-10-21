@@ -1,8 +1,11 @@
 name: Deploy Star Africa Logistics frontend to GitHub Pages
 
-# Keep deployment manual until Star Africa Neon/Auth and branding are configured.
-# After Phase 1 setup is complete, the technical team may add a push-to-main trigger.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -39,8 +42,8 @@ jobs:
         working-directory: frontend
         env:
           VITE_BASE_PATH: /Mdanson27-Star-Africa-Logistics-Limited/
-          VITE_NEON_AUTH_URL: ${{ secrets.VITE_NEON_AUTH_URL }}
-          VITE_PLATFORM_ADMIN_EMAIL: ${{ secrets.VITE_PLATFORM_ADMIN_EMAIL }}
+          VITE_NEON_AUTH_URL: https://ep-steep-bonus-b4weyruo.neonauth.c-6.us-east-2.aws.neon.tech/starafrica_db/auth
+          VITE_PLATFORM_ADMIN_EMAIL: automindsafrica@gmail.com
           # The API host is intentionally runtime-only. Never compile a
           # Cloudflare Quick Tunnel hostname into the production bundle.
           VITE_API_URL: ""

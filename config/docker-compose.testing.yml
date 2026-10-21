@@ -1,7 +1,7 @@
-# Star Africa Logistics Operating System — local production-like testing
+# Star Africa Logistics Operating System â€” local production-like testing
 #
 # Purpose:
-#   GitHub Pages -> Cloudflare Quick Tunnel -> localhost:8000
+#   GitHub Pages -> Cloudflare Quick Tunnel -> localhost:8100
 #   API + SAQ worker -> Neon
 #   API + SAQ worker -> local Valkey
 #
@@ -38,11 +38,11 @@ services:
     environment:
       ENVIRONMENT: production
       DEBUG: "false"
-      APP_BASE_URL: http://localhost:8000
+      APP_BASE_URL: http://localhost:8100
       CORS_ALLOWED_ORIGINS: https://mdanson27.github.io
       VALKEY_URL: redis://172.28.251.10:6379/0
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8100:8000"
     networks:
       - star_africa_testing
     depends_on:
@@ -71,7 +71,7 @@ services:
     environment:
       ENVIRONMENT: production
       DEBUG: "false"
-      APP_BASE_URL: http://localhost:8000
+      APP_BASE_URL: http://localhost:8100
       CORS_ALLOWED_ORIGINS: https://mdanson27.github.io
       VALKEY_URL: redis://172.28.251.10:6379/0
     networks:
