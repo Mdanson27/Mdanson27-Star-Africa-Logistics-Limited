@@ -11,6 +11,7 @@ from litestar.middleware.base import AbstractMiddleware
 from litestar.types import ASGIApp, Receive, Scope, Send
 
 from app.core.cache import get_valkey_pool
+from app.core.settings import settings
 
 logger = structlog.get_logger("app.ratelimit")
 
@@ -35,15 +36,21 @@ end
 """
 
 
+def _request_headers(scope: Scope) -> dict[bytes, str]:
+    return {
+        key.lower(): value.decode("utf-8", errors="ignore").strip()
+        for key, value in scope.get("headers", [])
+    }
+
+
 def extract_client_ip(scope: Scope) -> str:
     """Extract real client IP prioritized by Cloudflare, X-Forwarded-For, or ASGI client."""
-    headers = scope.get("headers", [])
-    header_map = {k.lower(): v.decode("utf-8", errors="ignore").strip() for k, v in headers}
+    header_map = _request_headers(scope)
 
-    if cf_ip := header_map.get("cf-connecting-ip"):
+    if cf_ip := header_map.get(b"cf-connecting-ip"):
         return cf_ip
 
-    if xff := header_map.get("x-forwarded-for"):
+    if xff := header_map.get(b"x-forwarded-for"):
         return xff.split(",")[0].strip()
 
     client = scope.get("client")
@@ -51,6 +58,17 @@ def extract_client_ip(scope: Scope) -> str:
         return str(client[0])
 
     return "127.0.0.1"
+
+
+def _cors_headers(scope: Scope) -> list[tuple[bytes, bytes]]:
+    origin = _request_headers(scope).get(b"origin")
+    if not origin or origin not in settings.cors_origins:
+        return []
+    return [
+        (b"access-control-allow-origin", origin.encode()),
+        (b"access-control-allow-credentials", b"true"),
+        (b"vary", b"Origin"),
+    ]
 
 
 class SlidingWindowRateLimitMiddleware(AbstractMiddleware):
@@ -65,16 +83,20 @@ class SlidingWindowRateLimitMiddleware(AbstractMiddleware):
             return
 
         path = scope.get("path", "")
+        method = scope.get("method", "GET").upper()
 
-        # Health probes must measure dependencies directly. Running the
-        # readiness endpoint through the Valkey-backed rate limiter creates
-        # a circular dependency and can turn a cache lookup delay into a
-        # false health failure.
+        # CORS preflight is transport metadata, not business traffic. Counting OPTIONS
+        # against the quota can create a self-amplifying 429/CORS failure loop.
+        if method == "OPTIONS":
+            await self.app(scope, receive, send)
+            return
+
+        # Health probes must measure dependencies directly. Running readiness through
+        # the Valkey-backed rate limiter creates a circular dependency.
         if path == "/health" or path.startswith("/health/"):
             await self.app(scope, receive, send)
             return
 
-        # Determine quota policy
         if "/api/v1/auth/login" in path:
             limit = 5
             category = "auth"
@@ -82,7 +104,10 @@ class SlidingWindowRateLimitMiddleware(AbstractMiddleware):
             limit = 500
             category = "webhook"
         else:
-            limit = 120
+            # The UI intentionally loads several independent operational datasets at
+            # once. 600/min still protects the API while leaving enough room for normal
+            # navigation, retries, PDF previews and background refreshes.
+            limit = 600
             category = "api"
 
         client_ip = extract_client_ip(scope)
@@ -104,7 +129,6 @@ class SlidingWindowRateLimitMiddleware(AbstractMiddleware):
             allowed, remaining, _total = result[0], result[1], result[2]
         except Exception as exc:  # noqa: BLE001
             logger.warning("ratelimit.valkey_error", error=str(exc))
-            # Fail open to guarantee resilience if cache cluster drops
             await self.app(scope, receive, send)
             return
 
@@ -120,12 +144,12 @@ class SlidingWindowRateLimitMiddleware(AbstractMiddleware):
                 (b"ratelimit-remaining", b"0"),
                 (b"ratelimit-reset", str(reset_time).encode()),
                 (b"retry-after", str(reset_time).encode()),
+                *_cors_headers(scope),
             ]
             await send({"type": "http.response.start", "status": 429, "headers": headers})
             await send({"type": "http.response.body", "body": body})
             return
 
-        # Add rate limit headers to downstream responses when successful
         async def send_with_ratelimit_headers(message: dict) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))

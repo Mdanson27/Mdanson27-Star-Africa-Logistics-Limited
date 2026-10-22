@@ -43,7 +43,13 @@ import { readSectionCache, writeSectionCache } from "@/lib/sectionCache";
 import { confirmDiscardChanges, useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { getErrorMessage } from "@/lib/api";
 import { businessApi, type ClientRecord } from "@/lib/businessApi";
-import { inventoryApi, type StockBalance } from "@/lib/inventoryApi";
+import {
+  inventoryApi,
+  type InventoryItem,
+  type StockBalance,
+  type Warehouse,
+  type WarehouseLocation,
+} from "@/lib/inventoryApi";
 import {
   uploadToPresignedUrl,
   workspaceApi,
@@ -277,6 +283,12 @@ export const ProjectsPage: React.FC = () => {
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("overview");
   const [projectStock, setProjectStock] = useState<StockBalance[]>([]);
   const [projectStockLoading, setProjectStockLoading] = useState(false);
+  const [projectInventoryItems, setProjectInventoryItems] = useState<InventoryItem[]>([]);
+  const [projectInventoryWarehouses, setProjectInventoryWarehouses] = useState<Warehouse[]>([]);
+  const [projectInventoryLocations, setProjectInventoryLocations] = useState<WarehouseLocation[]>([]);
+  const [projectGeneralStock, setProjectGeneralStock] = useState<StockBalance[]>([]);
+  const [projectInventoryForm, setProjectInventoryForm] = useState({ item_id: "", warehouse_id: "", location_id: "", quantity: "" });
+  const [projectInventorySaving, setProjectInventorySaving] = useState(false);
   const [financeView, setFinanceView] = useState<FinanceView>("invoices");
 
   const [query, setQuery] = useState("");
@@ -445,11 +457,55 @@ export const ProjectsPage: React.FC = () => {
   useEffect(() => {
     if (!selectedId || workspaceTab !== "inventory") return;
     setProjectStockLoading(true);
-    void inventoryApi.projectStock(selectedId)
-      .then(setProjectStock)
+    void Promise.all([
+      inventoryApi.projectStock(selectedId),
+      inventoryApi.items(),
+      inventoryApi.warehouses(),
+      inventoryApi.locations(),
+      inventoryApi.balances(),
+    ])
+      .then(([stock, itemRows, warehouseRows, locationRows, balanceRows]) => {
+        setProjectStock(stock);
+        setProjectInventoryItems(itemRows);
+        setProjectInventoryWarehouses(warehouseRows);
+        setProjectInventoryLocations(locationRows);
+        setProjectGeneralStock(balanceRows.filter((row) => !row.project_id && row.quantity > 0));
+      })
       .catch((error) => showErrorToast(getErrorMessage(error, "Project inventory could not be loaded."), "Inventory unavailable"))
       .finally(() => setProjectStockLoading(false));
   }, [selectedId, workspaceTab, showErrorToast]);
+
+  const allocateProjectInventory = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedId || !projectInventoryForm.item_id || !projectInventoryForm.warehouse_id || Number(projectInventoryForm.quantity) <= 0) {
+      showWarningToast("Choose an item, warehouse and quantity before allocating stock.", "Check inventory allocation");
+      return;
+    }
+    setProjectInventorySaving(true);
+    try {
+      await inventoryApi.createMovement({
+        movement_type: "project_allocation",
+        item_id: projectInventoryForm.item_id,
+        quantity: Number(projectInventoryForm.quantity),
+        from_warehouse_id: projectInventoryForm.warehouse_id,
+        from_location_id: projectInventoryForm.location_id || null,
+        from_project_id: null,
+        to_warehouse_id: projectInventoryForm.warehouse_id,
+        to_location_id: projectInventoryForm.location_id || null,
+        to_project_id: selectedId,
+        reference: workspace?.project.name ? `Project allocation - ${workspace.project.name}` : "Project allocation",
+      });
+      const [stock, balances] = await Promise.all([inventoryApi.projectStock(selectedId), inventoryApi.balances()]);
+      setProjectStock(stock);
+      setProjectGeneralStock(balances.filter((row) => !row.project_id && row.quantity > 0));
+      setProjectInventoryForm({ item_id: "", warehouse_id: "", location_id: "", quantity: "" });
+      showSuccessToast("Stock allocated to this project and added to movement history.", "Inventory allocated");
+    } catch (error) {
+      showErrorToast(getErrorMessage(error, "Stock could not be allocated to this project."), "Allocation failed");
+    } finally {
+      setProjectInventorySaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!projects.length || selectedId) return;
@@ -2310,6 +2366,20 @@ export const ProjectsPage: React.FC = () => {
                 {metricCard("Quantity Assigned", projectStock.reduce((sum, row) => sum + row.quantity, 0).toLocaleString())}
                 {metricCard("Stock Value", money(projectStock.reduce((sum, row) => sum + row.value_ugx, 0)))}
               </div>
+              <Card>
+                <div className="mb-4">
+                  <h3 className="font-semibold">Allocate stock to this project</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Choose from general company stock. The project allocation and movement history are recorded automatically.</p>
+                </div>
+                <form onSubmit={allocateProjectInventory} className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr_0.7fr_auto] lg:items-end">
+                  <label className="text-xs font-medium">Item<select className={`${selectClass} mt-1.5`} value={projectInventoryForm.item_id} onChange={(event) => setProjectInventoryForm((previous) => ({ ...previous, item_id: event.target.value, warehouse_id: "", location_id: "" }))}><option value="">Select available item</option>{projectInventoryItems.filter((item) => projectGeneralStock.some((balance) => balance.item_id === item.id)).map((item) => <option key={item.id} value={item.id}>{item.sku} - {item.name}</option>)}</select></label>
+                  <label className="text-xs font-medium">Warehouse<select className={`${selectClass} mt-1.5`} value={projectInventoryForm.warehouse_id} onChange={(event) => setProjectInventoryForm((previous) => ({ ...previous, warehouse_id: event.target.value, location_id: "" }))}><option value="">Select warehouse</option>{projectInventoryWarehouses.filter((warehouse) => projectGeneralStock.some((balance) => balance.item_id === projectInventoryForm.item_id && balance.warehouse_id === warehouse.id)).map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
+                  <label className="text-xs font-medium">Location<select className={`${selectClass} mt-1.5`} value={projectInventoryForm.location_id} onChange={(event) => setProjectInventoryForm((previous) => ({ ...previous, location_id: event.target.value }))}><option value="">Warehouse root</option>{projectInventoryLocations.filter((location) => location.warehouse_id === projectInventoryForm.warehouse_id).map((location) => <option key={location.id} value={location.id}>{location.code} - {location.name}</option>)}</select></label>
+                  <Input label="Quantity" type="number" min="0.001" step="0.001" value={projectInventoryForm.quantity} onChange={(event) => setProjectInventoryForm((previous) => ({ ...previous, quantity: event.target.value }))} />
+                  <Button type="submit" disabled={projectInventorySaving}>{projectInventorySaving ? "Allocating?" : "Allocate"}</Button>
+                </form>
+                {projectInventoryForm.item_id && projectInventoryForm.warehouse_id && <p className="mt-2 text-xs text-muted-foreground">Available here: {projectGeneralStock.filter((row) => row.item_id === projectInventoryForm.item_id && row.warehouse_id === projectInventoryForm.warehouse_id && (!projectInventoryForm.location_id || row.location_id === projectInventoryForm.location_id)).reduce((sum, row) => sum + row.quantity, 0).toLocaleString()}</p>}
+              </Card>
               <Card className="overflow-x-auto">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>

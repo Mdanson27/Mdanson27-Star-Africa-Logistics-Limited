@@ -154,3 +154,6 @@ PROJECT_IMPLEMENTATION_MANUAL.md
 *project_implemenation*
 project_implementation*
 project_implemenation*
+
+# Local runtime logs and temporary tunnel state
+_local-runtime/

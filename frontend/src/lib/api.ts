@@ -286,32 +286,105 @@ async function readErrorBody(response: Response): Promise<unknown> {
   }
 }
 
+interface ApiReadCacheEntry {
+  data: unknown;
+  freshUntil: number;
+  staleUntil: number;
+}
+
+const API_READ_FRESH_MS = 20_000;
+const API_READ_STALE_MS = 15 * 60_000;
+const apiReadCache = new Map<string, ApiReadCacheEntry>();
+const apiReadInflight = new Map<string, Promise<unknown>>();
+
+export function invalidateApiReadCache(pathPrefix?: string): void {
+  if (!pathPrefix) {
+    apiReadCache.clear();
+    return;
+  }
+  for (const key of apiReadCache.keys()) {
+    if (key.includes(pathPrefix)) apiReadCache.delete(key);
+  }
+}
+
+function canUseStaleRead(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status === 0 || error.status === 429 || (error.status ?? 0) >= 500;
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers);
-  headers.set("Accept", "application/json");
-  if (options.body !== undefined && !(options.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
+  const method = (options.method || "GET").toUpperCase();
+  const isRead = method === "GET" || method === "HEAD";
+  const cacheKey = `${method}:${path}`;
+  const now = Date.now();
+  const cached = isRead ? apiReadCache.get(cacheKey) : undefined;
+
+  if (cached && cached.freshUntil > now) return cached.data as T;
+
+  if (isRead) {
+    const existing = apiReadInflight.get(cacheKey);
+    if (existing) return (await existing) as T;
+  } else {
+    // Any mutation can change multiple dashboards and derived totals. Clearing the
+    // short-lived read cache keeps follow-up views correct without forcing each
+    // component to know which other endpoints became stale.
+    invalidateApiReadCache();
   }
 
-  let response: Response;
+  const execute = async (): Promise<T> => {
+    const headers = new Headers(options.headers);
+    headers.set("Accept", "application/json");
+    if (options.body !== undefined && !(options.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    let response: Response;
+    try {
+      response = await authenticatedFetch(`${getApiPrefix()}${path}`, {
+        ...options,
+        headers,
+      });
+    } catch (error) {
+      const parsed = parseApiError(error);
+      if (cached && cached.staleUntil > Date.now() && canUseStaleRead(parsed)) {
+        return cached.data as T;
+      }
+      throw parsed;
+    }
+
+    if (!response.ok) {
+      const body = await readErrorBody(response);
+      const parsed = parseApiError(body, response);
+      if (cached && cached.staleUntil > Date.now() && canUseStaleRead(parsed)) {
+        return cached.data as T;
+      }
+      throw parsed;
+    }
+
+    if (response.status === 204) return undefined as T;
+
+    const text = await response.text();
+    const data = (text ? JSON.parse(text) : undefined) as T;
+    if (isRead) {
+      const savedAt = Date.now();
+      apiReadCache.set(cacheKey, {
+        data,
+        freshUntil: savedAt + API_READ_FRESH_MS,
+        staleUntil: savedAt + API_READ_STALE_MS,
+      });
+    }
+    return data;
+  };
+
+  if (!isRead) return execute();
+
+  const promise = execute();
+  apiReadInflight.set(cacheKey, promise as Promise<unknown>);
   try {
-    response = await authenticatedFetch(`${getApiPrefix()}${path}`, {
-      ...options,
-      headers,
-    });
-  } catch (error) {
-    throw parseApiError(error);
+    return await promise;
+  } finally {
+    if (apiReadInflight.get(cacheKey) === promise) apiReadInflight.delete(cacheKey);
   }
-
-  if (!response.ok) {
-    const body = await readErrorBody(response);
-    throw parseApiError(body, response);
-  }
-
-  if (response.status === 204) return undefined as T;
-
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 configureApiBaseUrl(apiBaseUrl);

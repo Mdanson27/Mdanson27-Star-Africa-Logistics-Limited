@@ -451,7 +451,13 @@ class BusinessController(Controller):
             .scalars()
             .all()
         )
-        return [_quotation_read(row, has_current_preview=row.id in previewed_ids) for row in rows]
+        return [
+            _quotation_read(
+                row,
+                has_current_preview=bool(row.previewed_at) or row.id in previewed_ids,
+            )
+            for row in rows
+        ]
 
     @post(path="/quotations", status_code=HTTP_201_CREATED)
     async def create_quotation(
@@ -523,10 +529,11 @@ class BusinessController(Controller):
                     status_code=409,
                 )
             if item.status == "draft" and data.status in {"sent", "accepted"}:
-                try:
-                    await require_current_preview(db_session, "quotation", item.id)
-                except ValueError as exc:
-                    raise ClientException(detail=str(exc), status_code=409) from exc
+                if item.previewed_at is None:
+                    try:
+                        await require_current_preview(db_session, "quotation", item.id)
+                    except ValueError as exc:
+                        raise ClientException(detail=str(exc), status_code=409) from exc
             elif item.status == "sent" and data.status in {"accepted", "rejected", "expired"}:
                 try:
                     await require_current_reviewed_version(db_session, "quotation", item.id)
@@ -563,6 +570,7 @@ class BusinessController(Controller):
             item.project_id = data.project_id if data.project_id is not None else item.project_id
             item.client_name = client_name
         if quotation_content_change:
+            item.previewed_at = None
             await invalidate_current_generated_document(db_session, "quotation", item.id)
         await db_session.commit()
         await db_session.refresh(item)
@@ -577,7 +585,7 @@ class BusinessController(Controller):
                     {"from_status": previous_status},
                 )
         await db_session.commit()
-        has_preview = await current_document_has_action(
+        has_preview = bool(item.previewed_at) or await current_document_has_action(
             db_session, "quotation", item.id, {"previewed"}
         )
         return _quotation_read(item, has_current_preview=has_preview)
@@ -693,7 +701,7 @@ class BusinessController(Controller):
                     detail="Save invoice edits first, preview the regenerated PDF, then change its workflow status.",
                     status_code=409,
                 )
-            if item.status == "draft" and data.status == "sent":
+            if item.status == "draft" and data.status == "sent" and item.previewed_at is None:
                 try:
                     await require_current_preview(db_session, "invoice", item.id)
                 except ValueError as exc:
@@ -724,6 +732,7 @@ class BusinessController(Controller):
         elif paid > 0:
             item.status = "partially_paid"
         if invoice_content_change:
+            item.previewed_at = None
             await invalidate_current_generated_document(db_session, "invoice", item.id)
         await sync_invoice_ledger(db_session, item)
         await db_session.commit()
@@ -979,7 +988,7 @@ class BusinessController(Controller):
                     detail="Save purchase-order edits first, preview the regenerated PDF, then change its workflow status.",
                     status_code=409,
                 )
-            if item.status == "draft" and data.status == "issued":
+            if item.status == "draft" and data.status == "issued" and item.previewed_at is None:
                 try:
                     await require_current_preview(db_session, "purchase_order", item.id)
                 except ValueError as exc:
@@ -1015,6 +1024,7 @@ class BusinessController(Controller):
             if value is not None:
                 setattr(item, field, value)
         if po_content_change:
+            item.previewed_at = None
             await invalidate_current_generated_document(db_session, "purchase_order", item.id)
         await db_session.commit()
         await db_session.refresh(item)

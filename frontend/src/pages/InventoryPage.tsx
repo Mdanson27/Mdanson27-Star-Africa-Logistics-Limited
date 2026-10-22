@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -15,6 +15,9 @@ import { Modal } from "@/components/ui/Modal";
 import { SectionNav } from "@/components/common/SectionNav";
 import { SyncStatus } from "@/components/common/SyncStatus";
 import { useCustomToast } from "@/hooks/useCustomToast";
+import { useBackgroundRefresh } from "@/hooks/useBackgroundRefresh";
+import { useAuth } from "@/hooks/useAuth";
+import { readSectionCache, writeSectionCache } from "@/lib/sectionCache";
 import { getErrorMessage } from "@/lib/api";
 import { businessApi, type SupplierRecord } from "@/lib/businessApi";
 import { workspaceApi, type Project } from "@/lib/workspaceApi";
@@ -50,24 +53,41 @@ const emptyMovement = {
 const emptyRequest = { project_id: "", item_id: "", requested_quantity: "", notes: "" };
 const emptyIssue = { warehouse_id: "", location_id: "", quantity: "", reference: "", notes: "" };
 
+interface InventorySnapshot {
+  dashboard: InventoryDashboard | null;
+  items: InventoryItem[];
+  categories: InventoryCategory[];
+  units: InventoryUnit[];
+  warehouses: Warehouse[];
+  locations: WarehouseLocation[];
+  balances: StockBalance[];
+  movements: StockTransaction[];
+  requests: StockRequest[];
+  suppliers: SupplierRecord[];
+  projects: Project[];
+}
+
 export const InventoryPage: React.FC = () => {
   const { showSuccessToast, showErrorToast, showWarningToast } = useCustomToast();
+  const { user } = useAuth();
+  const [initialCache] = useState(() => readSectionCache<InventorySnapshot>(user?.id, "inventory"));
   const [section, setSection] = useState<Section>("dashboard");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<InventoryDashboard | null>(null);
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [categories, setCategories] = useState<InventoryCategory[]>([]);
-  const [units, setUnits] = useState<InventoryUnit[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [locations, setLocations] = useState<WarehouseLocation[]>([]);
-  const [balances, setBalances] = useState<StockBalance[]>([]);
-  const [movements, setMovements] = useState<StockTransaction[]>([]);
-  const [requests, setRequests] = useState<StockRequest[]>([]);
-  const [suppliers, setSuppliers] = useState<SupplierRecord[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(!initialCache);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialCache?.savedAt ?? null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<InventoryDashboard | null>(initialCache?.data.dashboard ?? null);
+  const [items, setItems] = useState<InventoryItem[]>(initialCache?.data.items ?? []);
+  const [categories, setCategories] = useState<InventoryCategory[]>(initialCache?.data.categories ?? []);
+  const [units, setUnits] = useState<InventoryUnit[]>(initialCache?.data.units ?? []);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(initialCache?.data.warehouses ?? []);
+  const [locations, setLocations] = useState<WarehouseLocation[]>(initialCache?.data.locations ?? []);
+  const [balances, setBalances] = useState<StockBalance[]>(initialCache?.data.balances ?? []);
+  const [movements, setMovements] = useState<StockTransaction[]>(initialCache?.data.movements ?? []);
+  const [requests, setRequests] = useState<StockRequest[]>(initialCache?.data.requests ?? []);
+  const [suppliers, setSuppliers] = useState<SupplierRecord[]>(initialCache?.data.suppliers ?? []);
+  const [projects, setProjects] = useState<Project[]>(initialCache?.data.projects ?? []);
   const [query, setQuery] = useState("");
   const [itemForm, setItemForm] = useState(emptyItem);
   const [warehouseForm, setWarehouseForm] = useState(emptyWarehouse);
@@ -80,6 +100,7 @@ export const InventoryPage: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [summary, itemRows, categoryRows, unitRows, warehouseRows, locationRows, balanceRows, movementRows, requestRows, supplierRows, projectRows] = await Promise.all([
         inventoryApi.dashboard(), inventoryApi.items(), inventoryApi.categories(), inventoryApi.units(), inventoryApi.warehouses(), inventoryApi.locations(),
@@ -87,15 +108,18 @@ export const InventoryPage: React.FC = () => {
       ]);
       setDashboard(summary); setItems(itemRows); setCategories(categoryRows); setUnits(unitRows); setWarehouses(warehouseRows); setLocations(locationRows);
       setBalances(balanceRows); setMovements(movementRows); setRequests(requestRows); setSuppliers(supplierRows); setProjects(projectRows);
-      setLastSyncedAt(new Date().toISOString());
+      const snapshot: InventorySnapshot = { dashboard: summary, items: itemRows, categories: categoryRows, units: unitRows, warehouses: warehouseRows, locations: locationRows, balances: balanceRows, movements: movementRows, requests: requestRows, suppliers: supplierRows, projects: projectRows };
+      setLastSyncedAt(writeSectionCache(user?.id, "inventory", snapshot));
     } catch (error) {
-      showErrorToast(getErrorMessage(error, "Inventory could not be refreshed."), "Inventory unavailable");
+      const message = getErrorMessage(error, "Inventory could not be refreshed.");
+      setLoadError(message);
+      if (!initialCache) showErrorToast(message, "Inventory unavailable");
     } finally {
       setLoading(false);
     }
-  }, [showErrorToast]);
+  }, [initialCache, showErrorToast, user?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useBackgroundRefresh(load);
 
   const filteredItems = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -104,6 +128,21 @@ export const InventoryPage: React.FC = () => {
   const lowItems = useMemo(() => items.filter((item) => item.is_low_stock), [items]);
   const companyBalances = useMemo(() => balances.filter((row) => !row.project_id), [balances]);
   const projectBalances = useMemo(() => balances.filter((row) => Boolean(row.project_id)), [balances]);
+
+  const openItemDialog = () => {
+    const defaultCategory = categories.find((row) => row.name === "General Supplies") || categories[0];
+    const defaultUnit = units.find((row) => row.code === "PCS") || units[0];
+    setItemForm({ ...emptyItem, category_id: defaultCategory?.id || "", unit_id: defaultUnit?.id || "" });
+    setDialog("item");
+  };
+
+  const openMovementDialog = (movementType = "stock_in") => {
+    const onlyWarehouse = warehouses.length === 1 ? warehouses[0].id : "";
+    const isInbound = ["stock_in", "adjustment_in"].includes(movementType);
+    const isOutbound = ["stock_out", "adjustment_out", "damaged", "lost", "write_off"].includes(movementType);
+    setMovementForm({ ...emptyMovement, movement_type: movementType, from_warehouse_id: isInbound ? "" : onlyWarehouse, to_warehouse_id: isOutbound ? "" : onlyWarehouse });
+    setDialog("movement");
+  };
 
   const sections = [
     { id: "dashboard" as const, label: "Dashboard" },
@@ -216,7 +255,7 @@ export const InventoryPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><h1 className="text-2xl font-bold">Inventory & Warehouses</h1><p className="mt-1 text-sm text-muted-foreground">Control company and project stock with a complete auditable movement trail.</p></div>
-        <div className="flex items-center gap-2"><SyncStatus isRefreshing={loading} lastSyncedAt={lastSyncedAt} /><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button><Button onClick={() => setDialog("movement")}><ArrowRightLeft className="mr-2 h-4 w-4" />Stock Movement</Button></div>
+        <div className="flex items-center gap-2"><SyncStatus isRefreshing={loading} error={loadError} lastSyncedAt={lastSyncedAt} /><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button><Button onClick={() => openMovementDialog("stock_in")}><ArrowRightLeft className="mr-2 h-4 w-4" />Stock Movement</Button></div>
       </div>
 
       <SectionNav items={sections} active={section} onChange={setSection} ariaLabel="Inventory sections" />
@@ -238,7 +277,7 @@ export const InventoryPage: React.FC = () => {
 
       {section === "items" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2"><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search item name, SKU or category" className="max-w-sm" /><Button onClick={() => setDialog("item")}><Plus className="mr-2 h-4 w-4" />New Item</Button><Button variant="outline" onClick={() => setDialog("category")}>New Category</Button><Button variant="outline" onClick={() => setDialog("unit")}>New Unit</Button></div>
+          <div className="flex flex-wrap gap-2"><Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search item name, SKU or category" className="max-w-sm" /><Button onClick={openItemDialog}><Plus className="mr-2 h-4 w-4" />New Item</Button><Button variant="outline" onClick={() => setDialog("category")}>New Category</Button><Button variant="outline" onClick={() => setDialog("unit")}>New Unit</Button></div>
           <Card className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="pb-3">SKU</th><th className="pb-3">Item</th><th className="pb-3">Category</th><th className="pb-3">Unit</th><th className="pb-3 text-right">Qty</th><th className="pb-3 text-right">Unit cost</th><th className="pb-3 text-right">Value</th><th className="pb-3">Status</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.id} className="border-t border-border"><td className="py-3 font-mono text-xs">{item.sku}</td><td className="py-3 font-medium">{item.name}</td><td className="py-3">{item.category_name || "—"}</td><td className="py-3">{item.unit_code || "—"}</td><td className="py-3 text-right">{qty(item.total_quantity)}</td><td className="py-3 text-right">{money(item.unit_cost_ugx)}</td><td className="py-3 text-right">{money(item.total_value_ugx)}</td><td className="py-3"><span className={item.is_low_stock ? "rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-500" : "rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-500"}>{item.is_low_stock ? "Low stock" : "In stock"}</span></td></tr>)}</tbody></table></Card>
         </div>
       )}
@@ -251,13 +290,13 @@ export const InventoryPage: React.FC = () => {
         <div className="grid gap-4 xl:grid-cols-2"><Card className="overflow-x-auto"><h3 className="mb-4 font-semibold">General company stock</h3><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2">Item</th><th>Warehouse / Location</th><th className="text-right">Qty</th><th className="text-right">Value</th></tr></thead><tbody>{companyBalances.map((row) => <tr key={row.id} className="border-t border-border"><td className="py-2"><b>{row.item_name}</b><br/><span className="text-muted-foreground">{row.item_sku}</span></td><td>{row.warehouse_name}<br/><span className="text-muted-foreground">{row.location_name || "Warehouse root"}</span></td><td className="text-right">{qty(row.quantity)}</td><td className="text-right">{money(row.value_ugx)}</td></tr>)}</tbody></table></Card><Card className="overflow-x-auto"><h3 className="mb-4 font-semibold">Project stock</h3><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2">Project</th><th>Item</th><th>Warehouse</th><th className="text-right">Qty</th></tr></thead><tbody>{projectBalances.map((row) => <tr key={row.id} className="border-t border-border"><td className="py-2 font-medium">{row.project_name}</td><td>{row.item_name}<br/><span className="text-muted-foreground">{row.item_sku}</span></td><td>{row.warehouse_name}</td><td className="text-right">{qty(row.quantity)}</td></tr>)}</tbody></table></Card></div>
       )}
 
-      {section === "movements" && <Card className="overflow-x-auto"><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Movement history</h3><Button size="sm" onClick={() => setDialog("movement")}><Plus className="mr-2 h-4 w-4" />Record Movement</Button></div><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2">Date</th><th>Type</th><th>Item</th><th className="text-right">Qty</th><th>Reference</th><th>Recorded by</th></tr></thead><tbody>{movements.map((row) => <tr key={row.id} className="border-t border-border"><td className="py-2">{new Date(row.created_at).toLocaleString()}</td><td>{label(row.movement_type)}</td><td>{row.item_name}<br/><span className="text-muted-foreground">{row.item_sku}</span></td><td className="text-right font-semibold">{qty(row.quantity)}</td><td>{row.reference || "—"}</td><td>{row.created_by_email}</td></tr>)}</tbody></table></Card>}
+      {section === "movements" && <Card className="overflow-x-auto"><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Movement history</h3><Button size="sm" onClick={() => openMovementDialog("transfer")}><Plus className="mr-2 h-4 w-4" />Record Movement</Button></div><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2">Date</th><th>Type</th><th>Item</th><th className="text-right">Qty</th><th>Reference</th><th>Recorded by</th></tr></thead><tbody>{movements.map((row) => <tr key={row.id} className="border-t border-border"><td className="py-2">{new Date(row.created_at).toLocaleString()}</td><td>{label(row.movement_type)}</td><td>{row.item_name}<br/><span className="text-muted-foreground">{row.item_sku}</span></td><td className="text-right font-semibold">{qty(row.quantity)}</td><td>{row.reference || "—"}</td><td>{row.created_by_email}</td></tr>)}</tbody></table></Card>}
 
       {section === "requests" && <Card className="overflow-x-auto"><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold">Stock request workflow</h3><Button size="sm" onClick={() => setDialog("request")}><Plus className="mr-2 h-4 w-4" />New Request</Button></div><table className="w-full text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2">Project</th><th>Item</th><th className="text-right">Requested</th><th className="text-right">Approved</th><th>Status</th><th>Action</th></tr></thead><tbody>{requests.map((row) => <tr key={row.id} className="border-t border-border"><td className="py-2 font-medium">{row.project_name}</td><td>{row.item_name}</td><td className="text-right">{qty(row.requested_quantity)}</td><td className="text-right">{qty(row.approved_quantity)}</td><td><span className="capitalize">{row.status}</span></td><td>{row.status === "pending" && <div className="flex gap-1"><Button size="sm" variant="outline" onClick={() => void updateRequest(row, "approved")}>Approve</Button><Button size="sm" variant="ghost" onClick={() => void updateRequest(row, "rejected")}>Reject</Button></div>}{row.status === "approved" && <Button size="sm" onClick={() => openIssueRequest(row)}>Issue Stock</Button>}{row.status === "issued" && <span className="text-emerald-500">Allocated</span>}</td></tr>)}</tbody></table></Card>}
 
       {section === "low_stock" && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{lowItems.map((item) => <Card key={item.id}><div className="flex items-start justify-between"><div><p className="font-semibold">{item.name}</p><p className="text-xs text-muted-foreground">{item.sku} · Minimum {qty(item.minimum_stock_level)}</p></div><AlertTriangle className="h-5 w-5 text-amber-500" /></div><p className="mt-4 text-2xl font-bold">{qty(item.total_quantity)}</p><p className="text-xs text-muted-foreground">Current stock · {money(item.total_value_ugx)}</p></Card>)}{!lowItems.length && <Card><p className="text-sm text-muted-foreground">No low-stock alerts.</p></Card>}</div>}
 
-      <Modal isOpen={dialog === "item"} onClose={closeDialog} title="New inventory item" description="Create the SKU, costing and stock-control settings."><form onSubmit={saveItem} className="space-y-3"><div className="grid grid-cols-2 gap-3"><Input placeholder="SKU / item code" value={itemForm.sku} onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })} /><Input placeholder="Item name" value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} /></div><textarea className={textareaClass} placeholder="Description" value={itemForm.description} onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })} /><div className="grid grid-cols-2 gap-3"><select className={selectClass} value={itemForm.category_id} onChange={(e) => setItemForm({ ...itemForm, category_id: e.target.value })}><option value="">Category</option>{categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><select className={selectClass} value={itemForm.unit_id} onChange={(e) => setItemForm({ ...itemForm, unit_id: e.target.value })}><option value="">Unit</option>{units.map((row) => <option key={row.id} value={row.id}>{row.code} — {row.name}</option>)}</select></div><select className={selectClass} value={itemForm.supplier_id} onChange={(e) => setItemForm({ ...itemForm, supplier_id: e.target.value })}><option value="">Preferred supplier (optional)</option>{suppliers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select><div className="grid grid-cols-2 gap-3"><Input type="number" min="0" step="0.01" placeholder="Unit cost UGX" value={itemForm.unit_cost_ugx} onChange={(e) => setItemForm({ ...itemForm, unit_cost_ugx: e.target.value })} /><Input type="number" min="0" step="0.001" placeholder="Minimum stock level" value={itemForm.minimum_stock_level} onChange={(e) => setItemForm({ ...itemForm, minimum_stock_level: e.target.value })} /></div><Button type="submit" className="w-full" disabled={busy}>Create Item</Button></form></Modal>
+      <Modal isOpen={dialog === "item"} onClose={closeDialog} title="New inventory item" description="Standard categories and units are already available, so you only enter the item-specific details."><form onSubmit={saveItem} className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><Input label="SKU / item code" placeholder="e.g. CEM-001" value={itemForm.sku} onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })} /><Input label="Item name" placeholder="e.g. Cement 50kg" value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} /></div><div><label className="mb-1.5 block text-xs font-medium">Description <span className="text-muted-foreground">(optional)</span></label><textarea className={textareaClass} placeholder="Short specification" value={itemForm.description} onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })} /></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium">Category<select className={`${selectClass} mt-1.5`} value={itemForm.category_id} onChange={(e) => setItemForm({ ...itemForm, category_id: e.target.value })}><option value="">Select category</option>{categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label><label className="text-xs font-medium">Unit of measure<select className={`${selectClass} mt-1.5`} value={itemForm.unit_id} onChange={(e) => setItemForm({ ...itemForm, unit_id: e.target.value })}><option value="">Select unit</option>{units.map((row) => <option key={row.id} value={row.id}>{row.code} - {row.name}</option>)}</select></label></div><label className="text-xs font-medium">Preferred supplier <span className="text-muted-foreground">(optional)</span><select className={`${selectClass} mt-1.5`} value={itemForm.supplier_id} onChange={(e) => setItemForm({ ...itemForm, supplier_id: e.target.value })}><option value="">No preferred supplier</option>{suppliers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label><div className="grid gap-3 sm:grid-cols-2"><Input label="Unit cost (UGX)" type="number" min="0" step="0.01" placeholder="0" value={itemForm.unit_cost_ugx} onChange={(e) => setItemForm({ ...itemForm, unit_cost_ugx: e.target.value })} /><Input label="Low-stock alert level" type="number" min="0" step="0.001" placeholder="0" value={itemForm.minimum_stock_level} onChange={(e) => setItemForm({ ...itemForm, minimum_stock_level: e.target.value })} /></div><Button type="submit" className="w-full" disabled={busy}>Create Item</Button></form></Modal>
 
       <Modal isOpen={dialog === "warehouse"} onClose={closeDialog} title="New warehouse"><form onSubmit={saveWarehouse} className="space-y-3"><div className="grid grid-cols-2 gap-3"><Input placeholder="Warehouse code" value={warehouseForm.code} onChange={(e) => setWarehouseForm({ ...warehouseForm, code: e.target.value })} /><Input placeholder="Warehouse name" value={warehouseForm.name} onChange={(e) => setWarehouseForm({ ...warehouseForm, name: e.target.value })} /></div><Input placeholder="Address" value={warehouseForm.address} onChange={(e) => setWarehouseForm({ ...warehouseForm, address: e.target.value })} /><textarea className={textareaClass} placeholder="Notes" value={warehouseForm.notes} onChange={(e) => setWarehouseForm({ ...warehouseForm, notes: e.target.value })} /><Button type="submit" className="w-full" disabled={busy}>Create Warehouse</Button></form></Modal>
 
