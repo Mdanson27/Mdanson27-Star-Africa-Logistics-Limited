@@ -32,9 +32,9 @@ export const LoginMascot: React.FC<LoginMascotProps> = ({ mode, email }) => {
   const emailMode = mode === "email";
 
   return (
-    <div className="mb-2 flex flex-col items-center text-center sm:mb-3">
-      <div className="relative h-[66px] w-[66px] sm:h-[82px] sm:w-[82px]">
-        <div className="star-africa-mascot-float absolute left-1/2 top-1/2 flex h-[82px] w-[82px] -translate-x-1/2 -translate-y-1/2 scale-[0.78] items-center justify-center rounded-full border border-[#dce5ee] bg-white shadow-[0_20px_55px_rgba(2,46,85,0.13)] sm:scale-100 dark:border-white/10 dark:bg-[#0b1f31]">
+    <div className="mb-3 flex flex-col items-center text-center sm:mb-4">
+      <div className="relative h-[58px] w-[58px] sm:h-[76px] sm:w-[76px]">
+        <div className="star-africa-mascot-float absolute inset-0 flex items-center justify-center rounded-full border border-[#dce5ee] bg-white shadow-[0_18px_45px_rgba(2,46,85,0.12)] dark:border-white/10 dark:bg-[#0b1f31]">
           <div className="absolute inset-[6px] rounded-full bg-[radial-gradient(circle_at_35%_25%,#ffffff_0%,#f7fbff_46%,#edf4fb_100%)] dark:bg-[radial-gradient(circle_at_35%_25%,#16334d_0%,#0c2134_55%,#081725_100%)]" />
 
           <div className="relative flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#0A4F82] shadow-[inset_0_0_0_2px_rgba(255,255,255,0.08)]">
