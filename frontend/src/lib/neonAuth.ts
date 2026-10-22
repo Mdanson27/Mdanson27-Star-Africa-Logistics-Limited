@@ -1,10 +1,11 @@
-import { createAuthClient } from "@neondatabase/neon-js/auth";
+import { createInternalNeonAuth } from "@neondatabase/neon-js/auth";
 
 const authUrl = (import.meta.env.VITE_NEON_AUTH_URL || "").trim().replace(/\/$/, "");
 
 export const isNeonAuthConfigured = Boolean(authUrl);
 
-const authClient = isNeonAuthConfigured ? createAuthClient(authUrl) : null;
+const neonAuth = isNeonAuthConfigured ? createInternalNeonAuth(authUrl) : null;
+const authClient = neonAuth?.adapter ?? null;
 
 export type StarAfricaLogisticsNeonAuthClient = NonNullable<typeof authClient>;
 
@@ -13,6 +14,11 @@ export function getNeonAuthClient(): StarAfricaLogisticsNeonAuthClient {
     throw new Error("Star Africa Logistics authentication is not configured yet.");
   }
   return authClient;
+}
+
+export async function getNeonAuthJWTToken(): Promise<string | null> {
+  if (!neonAuth) return null;
+  return neonAuth.getJWTToken();
 }
 
 const STAR_AFRICA_GITHUB_PAGES_PATH = "/Mdanson27-Star-Africa-Logistics-Limited/";

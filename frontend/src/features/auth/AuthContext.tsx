@@ -5,8 +5,8 @@ import {
   AUTH_SESSION_EXPIRED_EVENT,
   cacheAccessToken,
   clearCachedAccessToken,
+  getAccessToken,
   getCachedAccessToken,
-  getSessionAccessToken,
 } from "@/lib/authSession";
 import {
   getAuthCallbackUrl,
@@ -163,8 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      const sessionToken = getSessionAccessToken(sessionResult);
-      if (!sessionToken) {
+      const jwtToken = await getAccessToken(true);
+      if (!jwtToken) {
         if (cachedToken && cachedUser) return;
         clearSession();
         return;
@@ -172,9 +172,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const mappedUser = mapNeonUser(sessionData.user);
 
-      cacheAccessToken(sessionToken);
+      cacheAccessToken(jwtToken);
       cacheUser(mappedUser);
-      setToken(sessionToken);
+      setToken(jwtToken);
       setUser(mappedUser);
     } catch {
       if (!(cachedToken && cachedUser)) clearSession();

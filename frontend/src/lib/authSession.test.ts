@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const neonMocks = vi.hoisted(() => ({
-  getSession: vi.fn(),
+  getJWTToken: vi.fn(),
 }));
 
 vi.mock("@/lib/neonAuth", () => ({
   isNeonAuthConfigured: true,
-  getNeonAuthClient: () => ({ getSession: neonMocks.getSession }),
+  getNeonAuthJWTToken: neonMocks.getJWTToken,
 }));
 
 class MemoryStorage {
@@ -36,16 +36,6 @@ function jwtExpiringIn(seconds: number): string {
   return `header.${payload}.signature`;
 }
 
-function sessionWithToken(token: string) {
-  return {
-    data: {
-      session: { token },
-      user: { id: "user-1", email: "user@example.com" },
-    },
-    error: null,
-  };
-}
-
 describe("Neon access-token session cache", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -54,25 +44,25 @@ describe("Neon access-token session cache", () => {
     vi.stubGlobal("sessionStorage", new MemoryStorage());
   });
 
-  it("retrieves the JWT from the Neon session and caches it for API requests", async () => {
+  it("retrieves the signed Neon JWT and caches it for API requests", async () => {
     const token = jwtExpiringIn(3600);
-    neonMocks.getSession.mockResolvedValue(sessionWithToken(token));
+    neonMocks.getJWTToken.mockResolvedValue(token);
 
     const session = await import("@/lib/authSession");
 
     expect(await session.getAccessToken()).toBe(token);
     expect(session.getCachedAccessToken()).toBe(token);
-    expect(neonMocks.getSession).toHaveBeenCalledTimes(1);
+    expect(neonMocks.getJWTToken).toHaveBeenCalledTimes(1);
 
     expect(await session.getAccessToken()).toBe(token);
-    expect(neonMocks.getSession).toHaveBeenCalledTimes(1);
+    expect(neonMocks.getJWTToken).toHaveBeenCalledTimes(1);
   });
 
   it("does not reuse an expired cached token after refresh", async () => {
     const expired = jwtExpiringIn(-60);
     const fresh = jwtExpiringIn(3600);
     localStorage.setItem("starafrica.access_token", expired);
-    neonMocks.getSession.mockResolvedValue(sessionWithToken(fresh));
+    neonMocks.getJWTToken.mockResolvedValue(fresh);
 
     const session = await import("@/lib/authSession");
 
@@ -81,9 +71,9 @@ describe("Neon access-token session cache", () => {
     expect(session.getCachedAccessToken()).toBe(fresh);
   });
 
-  it("deduplicates simultaneous Neon session refresh requests", async () => {
+  it("deduplicates simultaneous Neon JWT refresh requests", async () => {
     const token = jwtExpiringIn(3600);
-    neonMocks.getSession.mockResolvedValue(sessionWithToken(token));
+    neonMocks.getJWTToken.mockResolvedValue(token);
 
     const session = await import("@/lib/authSession");
     const [first, second, third] = await Promise.all([
@@ -95,13 +85,13 @@ describe("Neon access-token session cache", () => {
     expect(first).toBe(token);
     expect(second).toBe(token);
     expect(third).toBe(token);
-    expect(neonMocks.getSession).toHaveBeenCalledTimes(1);
+    expect(neonMocks.getJWTToken).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to a still-valid cached JWT when Neon session refresh is unavailable", async () => {
+  it("falls back to a still-valid cached JWT when Neon JWT refresh is unavailable", async () => {
     const token = jwtExpiringIn(3600);
     localStorage.setItem("starafrica.access_token", token);
-    neonMocks.getSession.mockResolvedValue({ data: null, error: { message: "Unauthorized" } });
+    neonMocks.getJWTToken.mockRejectedValue(new Error("Unauthorized"));
 
     const session = await import("@/lib/authSession");
 

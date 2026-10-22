@@ -1,4 +1,4 @@
-import { getNeonAuthClient, isNeonAuthConfigured } from "@/lib/neonAuth";
+import { getNeonAuthJWTToken, isNeonAuthConfigured } from "@/lib/neonAuth";
 
 const ACCESS_TOKEN_KEY = "starafrica.access_token";
 const AUTH_NOTICE_KEY = "starafrica.authNotice";
@@ -44,16 +44,6 @@ export function clearCachedAccessToken(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
-export function getSessionAccessToken(result: {
-  data?: { session?: unknown } | null;
-} | null | undefined): string | null {
-  const session = result?.data?.session;
-  if (!session || typeof session !== "object") return null;
-
-  const token = (session as { token?: unknown }).token;
-  return typeof token === "string" && token.trim() ? token.trim() : null;
-}
-
 export function notifySessionExpired(): void {
   clearCachedAccessToken();
   sessionStorage.setItem(
@@ -86,14 +76,12 @@ export async function getAccessToken(forceRefresh = false): Promise<string | nul
 
   tokenRefreshPromise = (async () => {
     try {
-      // Neon Auth injects the signed API JWT into session.token. Using getSession()
-      // is important for OAuth callbacks because it exchanges the one-time
-      // neon_auth_session_verifier exactly once. Calling the lower-level
-      // /token endpoint here can race that exchange and produce a 401.
-      const result = await getNeonAuthClient().getSession();
-      const token = getSessionAccessToken(result);
+      // Better Auth's session.token is a browser session identifier, not the
+      // signed JWT our API validates against Neon JWKS. Neon exposes the
+      // short-lived API JWT separately through getJWTToken().
+      const token = await getNeonAuthJWTToken();
 
-      if (!token || result.error) {
+      if (!token || !isTokenFresh(token)) {
         if (cached) return cached;
         clearCachedAccessToken();
         return null;
