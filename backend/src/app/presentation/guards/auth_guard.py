@@ -16,6 +16,7 @@ Guards
 from __future__ import annotations
 
 import jwt
+import structlog
 from litestar.connection import ASGIConnection
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.types import RouteHandlerType
@@ -23,6 +24,8 @@ from litestar.types import RouteHandlerType
 from app.core.neon_jwt import decode_neon_access_token_async, decode_neon_session_token_async
 from app.core.security import decode_access_token, is_token_revoked
 from app.core.settings import settings
+
+logger = structlog.get_logger()
 
 
 class JWTAuthGuard:
@@ -68,6 +71,15 @@ class JWTAuthGuard:
             else:
                 payload = decode_access_token(token)
         except Exception as exc:
+            logger.warning(
+                "auth_token_rejected",
+                token_length=len(token),
+                dot_count=token.count("."),
+                token_kind="jwt" if token.count(".") == 2 else "opaque_session",
+                error_type=type(exc).__name__,
+                error_message=str(exc)[:240],
+                path=connection.url.path,
+            )
             raise NotAuthorizedException("Invalid or expired session token.") from exc
 
         user_id: str | None = payload.get("sub")
