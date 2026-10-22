@@ -2772,14 +2772,21 @@ export const ProjectsPage: React.FC = () => {
               </select>
             </div>
           </div>
-          <Input
-            label="Assignee email"
-            type="email"
-            value={taskForm.assignee_email}
-            onChange={(event) =>
-              setTaskForm((previous) => ({ ...previous, assignee_email: event.target.value }))
-            }
-          />
+          <div>
+            <label className="mb-1.5 block text-xs font-medium">Assignee</label>
+            <select
+              className={selectClass}
+              value={taskForm.assignee_email}
+              onChange={(event) =>
+                setTaskForm((previous) => ({ ...previous, assignee_email: event.target.value }))
+              }
+            >
+              <option value="">Unassigned</option>
+              {assignableUsers.map((staff) => (
+                <option key={staff.id} value={staff.email}>{staff.full_name} — {staff.email}</option>
+              ))}
+            </select>
+          </div>
           <Input
             label="Due date"
             type="date"

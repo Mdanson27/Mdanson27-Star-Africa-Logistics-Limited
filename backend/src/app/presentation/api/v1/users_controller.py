@@ -25,10 +25,12 @@ from litestar.connection import Request
 from litestar.di import Provide
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.postgres.user_repository import PostgresUserRepository
 from app.core.security import get_password_hash, verify_password_async
+from app.domain.people.models import Employee
 from app.domain.users.contracts import IUserRepository
 from app.domain.users.models import User
 from app.domain.users.schemas import (
@@ -345,13 +347,38 @@ class UsersController(Controller):
     async def list_assignable_users(
         self,
         user_repo: IUserRepository,
+        db_session: AsyncSession,
     ) -> list[AssignableUserRead]:
         users = await user_repo.list_all(limit=1000, offset=0)
-        return [
-            AssignableUserRead(id=user.id, email=user.email, full_name=user.full_name)
-            for user in sorted(users, key=lambda item: (item.full_name.lower(), item.email.lower()))
-            if user.is_active
-        ]
+        employees = (
+            (
+                await db_session.execute(
+                    select(Employee)
+                    .where(Employee.is_active.is_(True))
+                    .order_by(Employee.full_name)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        by_email: dict[str, AssignableUserRead] = {
+            employee.email.lower(): AssignableUserRead(
+                id=employee.id,
+                email=employee.email,
+                full_name=employee.full_name,
+            )
+            for employee in employees
+        }
+        for user in users:
+            if not user.is_active:
+                continue
+            by_email.setdefault(
+                user.email.lower(),
+                AssignableUserRead(id=user.id, email=user.email, full_name=user.full_name),
+            )
+        return sorted(
+            by_email.values(), key=lambda item: (item.full_name.lower(), item.email.lower())
+        )
 
     # ------------------------------------------------------------------
     # GET /{user_id} — User details

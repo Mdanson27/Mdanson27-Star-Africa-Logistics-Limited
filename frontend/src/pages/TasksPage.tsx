@@ -33,6 +33,7 @@ import {
 } from "@/lib/taskUtils";
 import {
   workspaceApi,
+  type AssignableUser,
   type DocumentRecord,
   type Project,
   type ProjectTask,
@@ -57,6 +58,7 @@ type TasksSnapshot = {
   tasks: ProjectTask[];
   projects: Project[];
   documents: DocumentRecord[];
+  assignees: AssignableUser[];
   dashboard: TaskDashboardSummary | null;
 };
 
@@ -92,6 +94,7 @@ export const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<ProjectTask[]>(initialCache?.data.tasks ?? []);
   const [projects, setProjects] = useState<Project[]>(initialCache?.data.projects ?? []);
   const [documents, setDocuments] = useState<DocumentRecord[]>(initialCache?.data.documents ?? []);
+  const [assignees, setAssignees] = useState<AssignableUser[]>(initialCache?.data.assignees ?? []);
   const [dashboard, setDashboard] = useState<TaskDashboardSummary | null>(initialCache?.data.dashboard ?? null);
   const [view, setView] = useState<TasksView>("my");
   const [displayMode, setDisplayMode] = useState<DisplayMode>("list");
@@ -109,21 +112,24 @@ export const TasksPage: React.FC = () => {
     setIsRefreshing(true);
     setLoadError(null);
     try {
-      const [nextTasks, nextProjects, nextDocuments, nextDashboard] = await Promise.all([
+      const [nextTasks, nextProjects, nextDocuments, nextAssignees, nextDashboard] = await Promise.all([
         workspaceApi.tasks(),
         workspaceApi.projects(),
         workspaceApi.documents(),
+        workspaceApi.assignableUsers(),
         workspaceApi.taskDashboard(),
       ]);
       const snapshot: TasksSnapshot = {
         tasks: nextTasks,
         projects: nextProjects,
         documents: nextDocuments,
+        assignees: nextAssignees,
         dashboard: nextDashboard,
       };
       setTasks(snapshot.tasks);
       setProjects(snapshot.projects);
       setDocuments(snapshot.documents);
+      setAssignees(snapshot.assignees);
       setDashboard(snapshot.dashboard);
       setLastSyncedAt(writeSectionCache(user?.id, "tasks", snapshot));
     } catch (error) {
@@ -440,7 +446,14 @@ export const TasksPage: React.FC = () => {
                 {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
               </select>
             </div>
-            <Input label="Assignee Email" type="email" value={form.assignee_email} onChange={(event) => setForm((current) => ({ ...current, assignee_email: event.target.value }))} placeholder="staff@starafricalogistics.com" />
+            <div>
+              <label className="mb-1.5 block text-xs font-medium">Assignee</label>
+              <select className={selectClass} value={form.assignee_email} onChange={(event) => setForm((current) => ({ ...current, assignee_email: event.target.value }))}>
+                <option value="">Unassigned</option>
+                {assignees.map((assignee) => <option key={assignee.id} value={assignee.email}>{assignee.full_name} — {assignee.email}</option>)}
+              </select>
+              {assignees.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">Add active staff in Settings → Staff & Access.</p>}
+            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div>

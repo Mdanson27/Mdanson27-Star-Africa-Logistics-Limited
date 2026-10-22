@@ -14,6 +14,7 @@ from litestar.connection import Request
 from litestar.di import Provide
 from litestar.exceptions import NotAuthorizedException
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.postgres.user_repository import PostgresUserRepository
@@ -24,6 +25,7 @@ from app.core.security import (
     verify_password_async,
 )
 from app.core.settings import settings
+from app.domain.people.models import Employee
 from app.domain.users.contracts import IUserRepository
 from app.domain.users.schemas import TokenResponse
 from app.presentation.guards.auth_guard import JWTAuthGuard
@@ -112,13 +114,32 @@ class AuthController(Controller):
         summary="Verify active Star Africa session",
         description="Validates the caller before the frontend is allowed to mount protected application screens.",
     )
-    async def verify_session(self, request: Request) -> dict[str, object]:
+    async def verify_session(self, request: Request, db_session: AsyncSession) -> dict[str, object]:
+        email = str(request.scope.get("email") or "").strip().lower()
+        if not email:
+            raise NotAuthorizedException("Authenticated email is required.")
+
+        is_platform_admin = email == settings.platform_admin_email
+        if settings.NEON_AUTH_JWKS_URL and not is_platform_admin:
+            employee = (
+                await db_session.execute(
+                    select(Employee).where(
+                        Employee.email == email,
+                        Employee.is_active.is_(True),
+                    )
+                )
+            ).scalar_one_or_none()
+            if employee is None:
+                raise NotAuthorizedException(
+                    "This account has not been added to the active Star Africa Logistics staff directory."
+                )
+
         return {
             "verified": True,
             "user_id": str(request.scope.get("user_id") or ""),
-            "email": str(request.scope.get("email") or ""),
+            "email": email,
             "role": str(request.scope.get("role") or "authenticated"),
-            "is_superuser": bool(request.scope.get("is_superuser", False)),
+            "is_superuser": is_platform_admin,
         }
 
     @post(

@@ -15,17 +15,19 @@ import { DocumentsPage } from "@/pages/DocumentsPage";
 import { BusinessPage } from "@/pages/BusinessPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { ReportsPage } from "@/pages/ReportsPage";
+import { PeoplePayrollPage } from "@/pages/PeoplePayrollPage";
 import { TelemetryStream } from "@/features/dashboard/TelemetryStream";
 import { SystemHealthProvider, useSystemHealth } from "@/features/dashboard/SystemHealthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const NAV_STORAGE_KEY = "starafrica.currentTab";
-const ADMIN_TABS: NavItem[] = ["dashboard", "users", "telemetry"];
+const ADMIN_TABS: NavItem[] = ["dashboard", "users", "telemetry", "people"];
 const ALL_TABS: NavItem[] = [
   "dashboard",
   "users",
   "telemetry",
+  "people",
   "home",
   "projects",
   "inventory",
@@ -79,6 +81,7 @@ const AuthenticatedApp: React.FC = () => {
       {currentTab === "dashboard" && isPlatformAdmin && <DashboardPage />}
       {currentTab === "users" && isPlatformAdmin && <UsersPage />}
       {currentTab === "telemetry" && isPlatformAdmin && <div className="max-w-4xl"><TelemetryStream /></div>}
+      {currentTab === "people" && isPlatformAdmin && <PeoplePayrollPage />}
       {currentTab === "home" && <HomePage onNavigate={selectTab} />}
       {currentTab === "projects" && <ProjectsPage />}
       {currentTab === "inventory" && <InventoryPage />}

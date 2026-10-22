@@ -19,7 +19,7 @@ class AppSettings(BaseSettings):
     # ── Neon Managed Better Auth ─────────────────────────────────────────────
     NEON_AUTH_BASE_URL: str = ""
     NEON_AUTH_JWKS_URL: str = ""
-    PLATFORM_ADMIN_EMAIL: str = ""
+    PLATFORM_ADMIN_EMAIL: str = "automindsafrica@gmail.com"
 
     # ── Cache (Valkey) ────────────────────────────────────────────────────────
     VALKEY_URL: str | None = None

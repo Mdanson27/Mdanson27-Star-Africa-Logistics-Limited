@@ -1,396 +1,128 @@
-import React, { useState } from "react";
-import { AlertTriangle, Check, AlertCircle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { PasswordInput } from "@/components/ui/PasswordInput";
+import React, { useMemo, useState } from "react";
+import { KeyRound, LogOut, ShieldCheck, UserRoundCog, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { Alert, AlertDescription } from "@/components/ui/Alert";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { SectionNav } from "@/components/common/SectionNav";
+import { StaffDirectory } from "@/features/people/StaffDirectory";
 import { useAuth } from "@/hooks/useAuth";
 import { useCustomToast } from "@/hooks/useCustomToast";
-import { apiV1UsersMeUpdateMe, apiV1UsersMePasswordUpdatePasswordMe, apiV1UsersMeDeleteMe } from "@/client/sdk.gen";
-
-type SettingsSection =
-  | "company"
-  | "users_staff"
-  | "projects"
-  | "documents"
-  | "business"
-  | "notifications"
-  | "integrations";
-
-const settingsCopy: Record<SettingsSection, { title: string; description: string }> = {
-  company: { title: "Company settings", description: "Star Africa Logistics company identity, contact details, currency and business-wide preferences belong here." },
-  users_staff: { title: "Users & Staff", description: "Personal account settings are available now. Staff roles and permissions will be added in the dedicated access-control phase." },
-  projects: { title: "Project settings", description: "Project statuses, categories, priorities and project defaults will be managed here." },
-  documents: { title: "Document settings", description: "Document categories, OCR rules and review defaults will be managed here." },
-  business: { title: "Business settings", description: "Quotation, invoice, purchase-order numbering and commercial defaults will be managed here." },
-  notifications: { title: "Notification settings", description: "Task reminders, project deadlines, payment reminders and alert preferences will be managed here." },
-  integrations: { title: "Integrations", description: "External services and future Star Africa Logistics integrations will be connected from this area." },
-};
 
 export const SettingsPage: React.FC = () => {
-  const { user, refreshProfile, logout } = useAuth();
+  const {
+    user,
+    isPlatformAdmin,
+    requestPasswordReset,
+    resetPasswordWithOtp,
+    logout,
+  } = useAuth();
   const { showSuccessToast, showErrorToast } = useCustomToast();
-  const [section, setSection] = useState<SettingsSection>("company");
-  const [activeTab, setActiveTab] = useState<"profile" | "password" | "danger">("profile");
+  const [section, setSection] = useState<"staff" | "account">(isPlatformAdmin ? "staff" : "account");
+  const [resetRequested, setResetRequested] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const settingsSections = [
-    { id: "company" as const, label: "Company" },
-    { id: "users_staff" as const, label: "Users & Staff" },
-    { id: "projects" as const, label: "Projects" },
-    { id: "documents" as const, label: "Documents" },
-    { id: "business" as const, label: "Business" },
-    { id: "notifications" as const, label: "Notifications" },
-    { id: "integrations" as const, label: "Integrations" },
-  ];
+  const sections = useMemo(() => [
+    ...(isPlatformAdmin ? [{ id: "staff" as const, label: "Staff & Access" }] : []),
+    { id: "account" as const, label: "My Account" },
+  ], [isPlatformAdmin]);
 
-  // Profile Form State
-  const [fullName, setFullName] = useState<string>(user?.full_name || "");
-  const [email, setEmail] = useState<string>(user?.email || "");
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState<boolean>(false);
-  const [profileEmailError, setProfileEmailError] = useState<string | null>(null);
-
-  // Password Form State
-  const [currentPassword, setCurrentPassword] = useState<string>("");
-  const [newPassword, setNewPassword] = useState<string>("");
-  const [confirmPassword, setConfirmPassword] = useState<string>("");
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
-  const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null);
-  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
-  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
-
-  // Danger Zone State
-  const [isDeleteOpen, setIsDeleteOpen] = useState<boolean>(false);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  const [deleteErr, setDeleteErr] = useState<string | null>(null);
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim() || !emailRegex.test(email.trim())) {
-      setProfileEmailError("Invalid email address");
-      return;
-    }
-    setProfileEmailError(null);
-
-    setIsUpdatingProfile(true);
-
+  const sendResetCode = async () => {
+    if (!user?.email || busy) return;
+    setBusy(true);
     try {
-      const res = await apiV1UsersMeUpdateMe({
-        body: {
-          full_name: fullName.trim() || null,
-          email: email.trim(),
-        },
-      });
-
-      if (res.response?.ok) {
-        showSuccessToast("User updated successfully");
-        await refreshProfile();
-      } else {
-        const msg = res.error ? String(res.error) : "User with this email already exists";
-        showErrorToast(msg);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to update profile.";
-      showErrorToast(msg);
-    } finally {
-      setIsUpdatingProfile(false);
-    }
+      await requestPasswordReset(user.email);
+      setResetRequested(true);
+      showSuccessToast(`A password reset code was sent to ${user.email}.`, "Reset code sent");
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : "Password reset could not be started.");
+    } finally { setBusy(false); }
   };
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    let isValid = true;
-
-    if (!currentPassword) {
-      setCurrentPasswordError("Password is required");
-      isValid = false;
-    } else {
-      setCurrentPasswordError(null);
-    }
-
-    if (!newPassword) {
-      setNewPasswordError("Password is required");
-      isValid = false;
-    } else if (newPassword.length < 8) {
-      setNewPasswordError("Password must be at least 8 characters");
-      isValid = false;
-    } else {
-      setNewPasswordError(null);
-    }
-
-    if (!confirmPassword) {
-      setConfirmPasswordError("Password confirmation is required");
-      isValid = false;
-    } else if (newPassword !== confirmPassword) {
-      setConfirmPasswordError("The passwords don't match");
-      isValid = false;
-    } else {
-      setConfirmPasswordError(null);
-    }
-
-    if (!isValid) return;
-
-    if (currentPassword === newPassword) {
-      setNewPasswordError("New password cannot be the same as the current one");
+  const updatePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user?.email) return;
+    if (!otp.trim()) {
+      showErrorToast("Enter the reset code sent to your email.");
       return;
     }
-
-    setIsUpdatingPassword(true);
-
-    try {
-      const res = await apiV1UsersMePasswordUpdatePasswordMe({
-        body: {
-          current_password: currentPassword,
-          new_password: newPassword,
-        },
-      });
-
-      if (res.response?.ok) {
-        showSuccessToast("Password updated successfully");
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        const msg = res.error ? String(res.error) : "Incorrect password";
-        showErrorToast(msg);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to update password.";
-      showErrorToast(msg);
-    } finally {
-      setIsUpdatingPassword(false);
+    if (newPassword.length < 8) {
+      showErrorToast("New password must be at least 8 characters.");
+      return;
     }
-  };
-
-  const handleDeleteAccount = async () => {
-    setIsDeleting(true);
-    setDeleteErr(null);
-
-    try {
-      const res = await apiV1UsersMeDeleteMe();
-      if (res.response?.ok) {
-        showSuccessToast("Your account has been successfully deleted");
-        await logout();
-      } else {
-        const msg = res.error ? String(res.error) : "Super users are not allowed to delete themselves";
-        setDeleteErr(msg);
-        showErrorToast(msg);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to delete account.";
-      setDeleteErr(msg);
-      showErrorToast(msg);
-    } finally {
-      setIsDeleting(false);
+    if (newPassword !== confirmPassword) {
+      showErrorToast("The new passwords do not match.");
+      return;
     }
+    setBusy(true);
+    try {
+      await resetPasswordWithOtp(user.email, otp.trim(), newPassword);
+      setOtp(""); setNewPassword(""); setConfirmPassword(""); setResetRequested(false);
+      showSuccessToast("Your password has been updated.", "Password changed");
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : "Password could not be updated.");
+    } finally { setBusy(false); }
   };
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure Star Africa Logistics company settings, work standards, access and integrations from one place.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage staff access and your own secure Star Africa Logistics account from one place.</p>
       </div>
 
-      <SectionNav
-        items={settingsSections}
-        active={section}
-        onChange={setSection}
-        ariaLabel="Settings sections"
-      />
+      <SectionNav items={sections} active={section} onChange={setSection} ariaLabel="Settings sections" />
 
-      {section === "users_staff" ? (
-        <>
-      {/* Tabs Header */}
-      <div className="flex gap-2 border-b border-border pb-2">
-        <button
-          onClick={() => setActiveTab("profile")}
-          className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
-            activeTab === "profile"
-              ? "bg-accent text-accent-foreground font-semibold"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-          }`}
-        >
-          My profile
-        </button>
-        <button
-          onClick={() => setActiveTab("password")}
-          className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
-            activeTab === "password"
-              ? "bg-accent text-accent-foreground font-semibold"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-          }`}
-        >
-          Password
-        </button>
-        {!user?.is_superuser && (
-          <button
-            onClick={() => setActiveTab("danger")}
-            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
-              activeTab === "danger"
-                ? "bg-destructive/15 text-destructive font-semibold"
-                : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            }`}
-          >
-            Danger zone
-          </button>
-        )}
-      </div>
-
-      {/* Profile Tab */}
-      {activeTab === "profile" && (
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>User Information</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
-          </CardHeader>
-
-          <form onSubmit={handleUpdateProfile} className="space-y-4" noValidate>
-            <Input
-              id="settings_fullname"
-              type="text"
-              label="Full name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-
-            <Input
-              id="settings_email"
-              type="email"
-              label="Email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (profileEmailError) setProfileEmailError(null);
-              }}
-              error={profileEmailError ?? undefined}
-              required
-            />
-
-            <div className="pt-2 flex justify-start">
-              <Button type="submit" loading={isUpdatingProfile}>
-                Save
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Password Tab */}
-      {activeTab === "password" && (
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Change Password</CardTitle>
-            <CardDescription>Update your account password</CardDescription>
-          </CardHeader>
-
-          <form onSubmit={handleUpdatePassword} className="space-y-4" noValidate>
-            <PasswordInput
-              id="current_password"
-              label="Current Password"
-              placeholder="••••••••"
-              value={currentPassword}
-              onChange={(e) => {
-                setCurrentPassword(e.target.value);
-                if (currentPasswordError) setCurrentPasswordError(null);
-              }}
-              error={currentPasswordError ?? undefined}
-              required
-            />
-
-            <PasswordInput
-              id="new_password"
-              label="New Password"
-              placeholder="••••••••"
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                if (newPasswordError) setNewPasswordError(null);
-              }}
-              error={newPasswordError ?? undefined}
-              required
-            />
-
-            <PasswordInput
-              id="confirm_password"
-              label="Confirm Password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                if (confirmPasswordError) setConfirmPasswordError(null);
-              }}
-              error={confirmPasswordError ?? undefined}
-              required
-            />
-
-            <div className="pt-2 flex justify-start">
-              <Button type="submit" loading={isUpdatingPassword}>
-                Update Password
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Danger Zone Tab */}
-      {activeTab === "danger" && (
-        <div className="max-w-md mt-4 rounded-lg border border-destructive/50 p-4">
-          <h3 className="font-semibold text-destructive">Delete Account</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Permanently delete your account and all associated data.
-          </p>
-
-          <Button
-            variant="destructive"
-            className="mt-3"
-            onClick={() => setIsDeleteOpen(true)}
-          >
-            Delete Account
-          </Button>
-
-          <Modal
-            isOpen={isDeleteOpen}
-            onClose={() => setIsDeleteOpen(false)}
-            title="Confirmation Required"
-            description="All your account data will be permanently deleted. If you are sure, please click Confirm to proceed. This action cannot be undone."
-          >
-            {deleteErr && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{deleteErr}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
-              <Button variant="outline" onClick={() => setIsDeleteOpen(false)} disabled={isDeleting}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteAccount} loading={isDeleting}>
-                Delete
-              </Button>
-            </div>
-          </Modal>
+      {section === "staff" && isPlatformAdmin && (
+        <div className="space-y-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="p-5 lg:col-span-2">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-primary/10 p-2 text-primary"><UsersRound className="h-5 w-5" /></div>
+                <div>
+                  <h2 className="font-semibold">Staff directory is the access list</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Add an employee here before they use Star Africa Logistics. Active staff appear in task/project assignment dropdowns and can sign in with the same email through Google or the configured authentication method. Deactivate a staff member to remove them from assignments and block future session verification.</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-5">
+              <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-500" /><h2 className="font-semibold">Platform administrator</h2></div>
+              <p className="mt-3 text-sm font-medium">automindsafrica@gmail.com</p>
+              <p className="mt-1 text-xs text-muted-foreground">Only the configured platform administrator can create/deactivate employees and access payroll administration.</p>
+            </Card>
+          </div>
+          <StaffDirectory compact />
         </div>
       )}
-        </>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>{settingsCopy[section].title}</CardTitle>
-            <CardDescription>{settingsCopy[section].description}</CardDescription>
-          </CardHeader>
-          <div className="rounded-lg border border-dashed border-border p-5">
-            <p className="text-sm font-medium">Dedicated configuration area established</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Step 2 creates the correct home for this configuration. The deeper controls will be implemented in their dedicated functional phases instead of being mixed into account settings.
-            </p>
-          </div>
-        </Card>
+
+      {section === "account" && (
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <Card className="p-5">
+            <div className="flex items-center gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><UserRoundCog className="h-5 w-5" /></div><div><h2 className="font-semibold">Signed-in account</h2><p className="text-xs text-muted-foreground">Identity verified before the application is opened.</p></div></div>
+            <div className="mt-5 space-y-4">
+              <div><p className="text-xs text-muted-foreground">Name</p><p className="mt-1 font-medium">{user?.full_name || "Star Africa Logistics user"}</p></div>
+              <div><p className="text-xs text-muted-foreground">Email</p><p className="mt-1 font-medium">{user?.email}</p></div>
+              <div><p className="text-xs text-muted-foreground">Access level</p><p className="mt-1 font-medium">{isPlatformAdmin ? "Platform administrator" : "Staff member"}</p></div>
+            </div>
+            <Button variant="outline" className="mt-6" onClick={() => void logout()}><LogOut className="mr-2 h-4 w-4" /> Sign out</Button>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><KeyRound className="h-5 w-5" /></div><div><h2 className="font-semibold">Password security</h2><p className="text-xs text-muted-foreground">Reset your password through the verified email attached to this account.</p></div></div>
+            {!resetRequested ? (
+              <div className="mt-6"><Button onClick={() => void sendResetCode()} disabled={busy}>{busy ? "Sending…" : "Send password reset code"}</Button></div>
+            ) : (
+              <form onSubmit={updatePassword} className="mt-5 space-y-4">
+                <Input label="Reset code" value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="Enter the code from your email" />
+                <Input label="New password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+                <Input label="Confirm new password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+                <div className="flex gap-2"><Button type="submit" disabled={busy}>{busy ? "Updating…" : "Update password"}</Button><Button type="button" variant="outline" onClick={() => setResetRequested(false)}>Cancel</Button></div>
+              </form>
+            )}
+          </Card>
+        </div>
       )}
     </div>
   );

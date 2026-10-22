@@ -14,7 +14,7 @@ import {
   LogOut,
   Settings,
   ShieldCheck,
-  Users,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,6 +26,7 @@ export type NavItem =
   | "dashboard"
   | "users"
   | "telemetry"
+  | "people"
   | "home"
   | "projects"
   | "inventory"
@@ -70,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
 
   const admin = [
     { id: "dashboard" as NavItem, label: "Admin Console", icon: ShieldCheck },
-    { id: "users" as NavItem, label: "Users & Access", icon: Users },
+    { id: "people" as NavItem, label: "People & Payroll", icon: UsersRound },
     { id: "telemetry" as NavItem, label: "System Telemetry", icon: Activity },
   ];
 

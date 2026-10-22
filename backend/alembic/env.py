@@ -30,6 +30,7 @@ if SRC not in sys.path:
 import app.domain.bids.models
 import app.domain.business.models
 import app.domain.inventory.models
+import app.domain.people.models
 import app.domain.reporting.models
 import app.domain.telemetry.models
 import app.domain.users.models
