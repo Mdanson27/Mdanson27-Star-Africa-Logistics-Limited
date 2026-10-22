@@ -77,8 +77,8 @@ export async function getAccessToken(forceRefresh = false): Promise<string | nul
   tokenRefreshPromise = (async () => {
     try {
       // Better Auth's session.token is a browser session identifier, not the
-      // signed JWT our API validates against Neon JWKS. Neon exposes the
-      // short-lived API JWT separately through getJWTToken().
+      // signed JWT our API validates against Neon JWKS. getNeonAuthJWTToken()
+      // exchanges the authenticated cookie session through the /token endpoint.
       const token = await getNeonAuthJWTToken();
 
       if (!token || !isTokenFresh(token)) {

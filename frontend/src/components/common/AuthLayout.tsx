@@ -41,7 +41,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           </div>
         </section>
 
-        <section className="star-africa-auth-content relative flex min-h-dvh flex-col overflow-x-hidden overflow-y-auto lg:h-full lg:min-h-0 lg:overflow-y-auto">
+        <section className="star-africa-auth-content relative flex min-h-dvh flex-col overflow-x-hidden overflow-y-auto lg:h-full lg:min-h-0 lg:overflow-hidden">
           <div className="pointer-events-none absolute right-[-80px] top-[10%] h-64 w-64 rounded-full bg-[#DC1D2D]/[0.045] blur-3xl" />
           <div className="pointer-events-none absolute bottom-[4%] left-[-70px] h-64 w-64 rounded-full bg-[#022E55]/[0.055] blur-3xl" />
 
