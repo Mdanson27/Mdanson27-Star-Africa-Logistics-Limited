@@ -24,7 +24,7 @@ export interface AuthUser {
   image?: string | null;
 }
 
-const PLATFORM_ADMIN_EMAIL = (import.meta.env.VITE_PLATFORM_ADMIN_EMAIL || "").trim().toLowerCase();
+const PLATFORM_ADMIN_EMAIL = (import.meta.env.VITE_PLATFORM_ADMIN_EMAIL || "automindsafrica@gmail.com").trim().toLowerCase();
 const AUTH_USER_CACHE_KEY = "starafrica.authUser";
 
 export type AuthState = "booting" | "signed_out" | "authenticating" | "verifying_neon" | "verifying_api" | "verified" | "auth_failed";

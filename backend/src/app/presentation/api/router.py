@@ -6,6 +6,7 @@ from app.presentation.api.v1.bids_controller import BidsController
 from app.presentation.api.v1.business_controller import BusinessController
 from app.presentation.api.v1.commercial_documents_controller import CommercialDocumentsController
 from app.presentation.api.v1.inventory_controller import InventoryController
+from app.presentation.api.v1.people_controller import PeopleController
 from app.presentation.api.v1.reporting_controller import ReportingController
 from app.presentation.api.v1.telemetry_controller import TelemetryController
 from app.presentation.api.v1.users_controller import UsersController
@@ -30,6 +31,7 @@ api_router = Router(
         BusinessController,
         BidsController,
         InventoryController,
+        PeopleController,
         CommercialDocumentsController,
         ReportingController,
     ],

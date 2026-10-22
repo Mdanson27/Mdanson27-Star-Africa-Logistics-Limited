@@ -607,6 +607,81 @@ export type DownloadResponse = {
 };
 
 /**
+ * EmployeeCreate
+ */
+export type EmployeeCreate = {
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_name?: string | null;
+    base_salary_ugx?: number;
+    department?: string;
+    email: string;
+    employee_no: string;
+    employment_type?: string;
+    full_name: string;
+    hire_date?: string | null;
+    is_active?: boolean;
+    job_title?: string;
+    mobile_money_number?: string | null;
+    notes?: string | null;
+    nssf_number?: string | null;
+    payment_method?: string;
+    phone?: string | null;
+    tin?: string | null;
+};
+
+/**
+ * EmployeeRead
+ */
+export type EmployeeRead = {
+    bank_account_name: string | null;
+    bank_account_number: string | null;
+    bank_name: string | null;
+    base_salary_ugx: number;
+    created_at: string;
+    department: string;
+    email: string;
+    employee_no: string;
+    employment_type: string;
+    full_name: string;
+    hire_date: string | null;
+    id: string;
+    is_active: boolean;
+    job_title: string;
+    mobile_money_number: string | null;
+    notes: string | null;
+    nssf_number: string | null;
+    payment_method: string;
+    phone: string | null;
+    tin: string | null;
+    updated_at: string;
+};
+
+/**
+ * EmployeeUpdate
+ */
+export type EmployeeUpdate = {
+    bank_account_name?: string | null;
+    bank_account_number?: string | null;
+    bank_name?: string | null;
+    base_salary_ugx?: number | null;
+    department?: string | null;
+    email?: string | null;
+    employee_no?: string | null;
+    employment_type?: string | null;
+    full_name?: string | null;
+    hire_date?: string | null;
+    is_active?: boolean | null;
+    job_title?: string | null;
+    mobile_money_number?: string | null;
+    notes?: string | null;
+    nssf_number?: string | null;
+    payment_method?: string | null;
+    phone?: string | null;
+    tin?: string | null;
+};
+
+/**
  * ExpenseCreate
  */
 export type ExpenseCreate = {
@@ -917,6 +992,92 @@ export type PaymentRead = {
     recorded_by_email: string;
     reference: string | null;
     updated_at: string;
+};
+
+/**
+ * PayrollPaymentRead
+ */
+export type PayrollPaymentRead = {
+    allowances_ugx: number;
+    basic_pay_ugx: number;
+    deductions_ugx: number;
+    employee_email: string;
+    employee_id: string;
+    employee_name: string;
+    employee_no: string;
+    gross_pay_ugx: number;
+    id: string;
+    net_pay_ugx: number;
+    notes: string | null;
+    paid_at: string | null;
+    pay_date: string;
+    payment_method: string;
+    payment_reference: string | null;
+    payment_status: string;
+    payroll_run_id: string;
+    period_end: string;
+    period_start: string;
+};
+
+/**
+ * PayrollPaymentUpdate
+ */
+export type PayrollPaymentUpdate = {
+    allowances_ugx?: number | null;
+    deductions_ugx?: number | null;
+    notes?: string | null;
+    payment_method?: string | null;
+    payment_reference?: string | null;
+    payment_status?: string | null;
+};
+
+/**
+ * PayrollRunCreate
+ */
+export type PayrollRunCreate = {
+    notes?: string | null;
+    pay_date: string;
+    period_end: string;
+    period_start: string;
+};
+
+/**
+ * PayrollRunRead
+ */
+export type PayrollRunRead = {
+    created_at: string;
+    created_by_email: string;
+    deductions_total_ugx: number;
+    employee_count: number;
+    finalized_at: string | null;
+    gross_total_ugx: number;
+    id: string;
+    net_total_ugx: number;
+    notes: string | null;
+    paid_total_ugx: number;
+    pay_date: string;
+    period_end: string;
+    period_start: string;
+    status: string;
+};
+
+/**
+ * PayrollRunUpdate
+ */
+export type PayrollRunUpdate = {
+    notes?: string | null;
+    pay_date?: string | null;
+    status?: string | null;
+};
+
+/**
+ * PeopleDashboard
+ */
+export type PeopleDashboard = {
+    active_employees: number;
+    monthly_payroll_ugx: number;
+    paid_this_month_ugx: number;
+    pending_payments: number;
 };
 
 /**
@@ -4618,6 +4779,268 @@ export type ApiV1InventoryWarehousesCreateWarehouseResponses = {
 };
 
 export type ApiV1InventoryWarehousesCreateWarehouseResponse = ApiV1InventoryWarehousesCreateWarehouseResponses[keyof ApiV1InventoryWarehousesCreateWarehouseResponses];
+
+export type ApiV1PeopleDashboardDashboardData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/dashboard';
+};
+
+export type ApiV1PeopleDashboardDashboardResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: PeopleDashboard;
+};
+
+export type ApiV1PeopleDashboardDashboardResponse = ApiV1PeopleDashboardDashboardResponses[keyof ApiV1PeopleDashboardDashboardResponses];
+
+export type ApiV1PeopleEmployeesEmployeesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        include_inactive?: boolean;
+    };
+    url: '/api/v1/people/employees';
+};
+
+export type ApiV1PeopleEmployeesEmployeesErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeopleEmployeesEmployeesError = ApiV1PeopleEmployeesEmployeesErrors[keyof ApiV1PeopleEmployeesEmployeesErrors];
+
+export type ApiV1PeopleEmployeesEmployeesResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: Array<EmployeeRead>;
+};
+
+export type ApiV1PeopleEmployeesEmployeesResponse = ApiV1PeopleEmployeesEmployeesResponses[keyof ApiV1PeopleEmployeesEmployeesResponses];
+
+export type ApiV1PeopleEmployeesCreateEmployeeData = {
+    body: EmployeeCreate;
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/employees';
+};
+
+export type ApiV1PeopleEmployeesCreateEmployeeErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeopleEmployeesCreateEmployeeError = ApiV1PeopleEmployeesCreateEmployeeErrors[keyof ApiV1PeopleEmployeesCreateEmployeeErrors];
+
+export type ApiV1PeopleEmployeesCreateEmployeeResponses = {
+    /**
+     * Document created, URL follows
+     */
+    201: EmployeeRead;
+};
+
+export type ApiV1PeopleEmployeesCreateEmployeeResponse = ApiV1PeopleEmployeesCreateEmployeeResponses[keyof ApiV1PeopleEmployeesCreateEmployeeResponses];
+
+export type ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeData = {
+    body: EmployeeUpdate;
+    path: {
+        employee_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/employees/{employee_id}';
+};
+
+export type ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeError = ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeErrors[keyof ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeErrors];
+
+export type ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: EmployeeRead;
+};
+
+export type ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeResponse = ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeResponses[keyof ApiV1PeopleEmployeesEmployeeIdUpdateEmployeeResponses];
+
+export type ApiV1PeoplePayrollPaymentsPayrollPaymentsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        employee_id?: string | null;
+        payroll_run_id?: string | null;
+        from_date?: string | null;
+        to_date?: string | null;
+    };
+    url: '/api/v1/people/payroll-payments';
+};
+
+export type ApiV1PeoplePayrollPaymentsPayrollPaymentsErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeoplePayrollPaymentsPayrollPaymentsError = ApiV1PeoplePayrollPaymentsPayrollPaymentsErrors[keyof ApiV1PeoplePayrollPaymentsPayrollPaymentsErrors];
+
+export type ApiV1PeoplePayrollPaymentsPayrollPaymentsResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: Array<PayrollPaymentRead>;
+};
+
+export type ApiV1PeoplePayrollPaymentsPayrollPaymentsResponse = ApiV1PeoplePayrollPaymentsPayrollPaymentsResponses[keyof ApiV1PeoplePayrollPaymentsPayrollPaymentsResponses];
+
+export type ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentData = {
+    body: PayrollPaymentUpdate;
+    path: {
+        payment_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/payroll-payments/{payment_id}';
+};
+
+export type ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentError = ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentErrors[keyof ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentErrors];
+
+export type ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: PayrollPaymentRead;
+};
+
+export type ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentResponse = ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentResponses[keyof ApiV1PeoplePayrollPaymentsPaymentIdUpdatePayrollPaymentResponses];
+
+export type ApiV1PeoplePayrollRunsPayrollRunsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/payroll-runs';
+};
+
+export type ApiV1PeoplePayrollRunsPayrollRunsResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: Array<PayrollRunRead>;
+};
+
+export type ApiV1PeoplePayrollRunsPayrollRunsResponse = ApiV1PeoplePayrollRunsPayrollRunsResponses[keyof ApiV1PeoplePayrollRunsPayrollRunsResponses];
+
+export type ApiV1PeoplePayrollRunsCreatePayrollRunData = {
+    body: PayrollRunCreate;
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/payroll-runs';
+};
+
+export type ApiV1PeoplePayrollRunsCreatePayrollRunErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeoplePayrollRunsCreatePayrollRunError = ApiV1PeoplePayrollRunsCreatePayrollRunErrors[keyof ApiV1PeoplePayrollRunsCreatePayrollRunErrors];
+
+export type ApiV1PeoplePayrollRunsCreatePayrollRunResponses = {
+    /**
+     * Document created, URL follows
+     */
+    201: PayrollRunRead;
+};
+
+export type ApiV1PeoplePayrollRunsCreatePayrollRunResponse = ApiV1PeoplePayrollRunsCreatePayrollRunResponses[keyof ApiV1PeoplePayrollRunsCreatePayrollRunResponses];
+
+export type ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunData = {
+    body: PayrollRunUpdate;
+    path: {
+        run_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/payroll-runs/{run_id}';
+};
+
+export type ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunError = ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunErrors[keyof ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunErrors];
+
+export type ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: PayrollRunRead;
+};
+
+export type ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunResponse = ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunResponses[keyof ApiV1PeoplePayrollRunsRunIdUpdatePayrollRunResponses];
 
 export type ApiV1ProjectsListProjectsData = {
     body?: never;

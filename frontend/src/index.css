@@ -237,3 +237,16 @@
 .star-africa-loading {
   background: radial-gradient(circle at 30% 30%, rgba(104, 174, 224, 0.12), transparent 34%), radial-gradient(circle at 70% 70%, rgba(230, 46, 62, 0.08), transparent 34%), hsl(var(--background));
 }
+
+/* Keep native select popups readable in both light and dark themes. */
+select {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  color-scheme: light dark;
+}
+
+select option,
+select optgroup {
+  color: hsl(var(--popover-foreground));
+  background-color: hsl(var(--popover));
+}
