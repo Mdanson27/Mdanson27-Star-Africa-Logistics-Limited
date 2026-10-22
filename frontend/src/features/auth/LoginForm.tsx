@@ -235,57 +235,39 @@ export const LoginForm: React.FC = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-3 lg:hidden">
-        <Logo variant="full" className="h-14 w-48" />
+      <div className="mb-3 flex items-center gap-3 lg:hidden">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-[#dce5ee] dark:ring-white/10">
+          <Logo variant="full" className="h-full w-full" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-[#E62E3E]">
+            {brand.companyName}
+          </p>
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.13em] text-muted-foreground">
+            Logistics Operating System
+          </p>
+        </div>
       </div>
 
-      <div className="mb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#E62E3E]">
+      <div className="mb-2 sm:mb-3">
+        <p className="hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-[#E62E3E] lg:block">
           {brand.companyName}
         </p>
-        <h2 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[#07233c] dark:text-white">
+        <h2 className="text-[27px] font-semibold tracking-[-0.045em] text-[#07233c] sm:text-[32px] lg:mt-1 dark:text-white">
           Welcome back.
         </h2>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Sign in to your workspace.
+        <p className="mt-0.5 text-[12px] text-muted-foreground sm:mt-1 sm:text-[13px]">
+          Sign in securely to continue to your workspace.
         </p>
       </div>
 
       <LoginMascot mode={activeField} email={email} />
 
       {serverError && (
-        <Alert variant={isRateLimited ? "warning" : "destructive"} className="mb-5">
+        <Alert variant={isRateLimited ? "warning" : "destructive"} className="mb-3">
           <AlertDescription>{serverError}</AlertDescription>
         </Alert>
       )}
-
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleGoogleSignIn}
-        disabled={!authConfigured}
-        className="h-11 w-full gap-3 rounded-xl border-[#d8e0ea] bg-white text-[#17324a] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:shadow-md dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
-      >
-        <GoogleMark />
-        Continue with Google
-      </Button>
-      <div className="mt-2 flex justify-center">
-        <a
-          href={`tel:${brand.administratorPhone}`}
-          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#d8e0ea] px-3 text-[11px] font-semibold text-[#0A4F82] transition hover:border-[#b8c7d6] hover:bg-[#f8fafc] hover:text-[#E62E3E] dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
-        >
-          <PhoneCall className="h-3.5 w-3.5" />
-          Contact administrator
-        </a>
-      </div>
-
-      <div className="my-3 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          or
-        </span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
 
       <form onSubmit={handleSubmit} className="space-y-3" noValidate>
         <Input
@@ -365,6 +347,25 @@ export const LoginForm: React.FC = () => {
           Sign in
         </Button>
       </form>
+
+      <div className="my-3 flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          or continue with
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleGoogleSignIn}
+        disabled={!authConfigured}
+        className="h-10 w-full gap-3 rounded-xl border-[#d8e0ea] bg-white text-[#17324a] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:shadow-md sm:h-11 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
+      >
+        <GoogleMark />
+        Continue with Google
+      </Button>
 
       <Modal
         isOpen={resetOpen}
@@ -478,9 +479,22 @@ export const LoginForm: React.FC = () => {
         )}
       </Modal>
 
-      <div className="mt-3 flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+      <div className="mt-3 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.14em] text-muted-foreground sm:text-[10px] sm:tracking-[0.15em]">
         <Lock className="h-3 w-3" />
         Secure Star Africa Logistics access
+      </div>
+
+      <div className="mt-3 border-t border-border pt-3 text-center">
+        <p className="mb-2 text-[10px] leading-4 text-muted-foreground">
+          Need help accessing your workspace?
+        </p>
+        <a
+          href={`tel:${brand.administratorPhone}`}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#d8e0ea] px-3.5 py-2 text-[11px] font-semibold text-[#0A4F82] transition hover:border-[#b8c7d6] hover:bg-[#f8fafc] hover:text-[#E62E3E] dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+        >
+          <PhoneCall className="h-3.5 w-3.5" />
+          Contact administrator
+        </a>
       </div>
     </div>
   );
