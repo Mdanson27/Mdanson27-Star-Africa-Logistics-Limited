@@ -41,7 +41,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           </div>
         </section>
 
-        <section className="star-africa-auth-content relative flex min-h-dvh flex-col overflow-x-hidden overflow-y-auto lg:h-full lg:min-h-0 lg:overflow-hidden">
+        <section className="star-africa-auth-content relative flex min-h-dvh flex-col overflow-x-hidden overflow-y-auto lg:h-full lg:min-h-0 lg:overflow-y-auto">
           <div className="pointer-events-none absolute right-[-80px] top-[10%] h-64 w-64 rounded-full bg-[#DC1D2D]/[0.045] blur-3xl" />
           <div className="pointer-events-none absolute bottom-[4%] left-[-70px] h-64 w-64 rounded-full bg-[#022E55]/[0.055] blur-3xl" />
 
@@ -49,8 +49,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             <Appearance />
           </div>
 
-          <div className="relative z-10 flex flex-1 items-start justify-center px-3 pb-4 pt-14 sm:px-5 sm:pb-6 sm:pt-16 md:px-8 lg:min-h-0 lg:items-center lg:py-3">
-            <div className="w-full max-w-[500px] overflow-visible rounded-[22px] border border-[#d9e3ed] bg-white/94 p-4 shadow-[0_24px_80px_rgba(2,46,85,0.09)] backdrop-blur-xl sm:rounded-[28px] sm:p-6 dark:border-[#3977a6]/25 dark:bg-[#0b1a2a]/92 lg:max-h-[calc(100dvh-24px)] lg:overflow-y-auto">
+          <div className="relative z-10 flex flex-1 items-start justify-center px-3 pb-5 pt-14 sm:px-5 sm:pb-7 sm:pt-16 md:px-8 lg:items-center lg:px-10 lg:py-8">
+            <div className="w-full max-w-[500px] rounded-[22px] border border-[#d9e3ed] bg-white/94 p-4 shadow-[0_24px_80px_rgba(2,46,85,0.09)] backdrop-blur-xl sm:rounded-[28px] sm:p-6 lg:max-w-[520px] lg:p-7 dark:border-[#3977a6]/25 dark:bg-[#0b1a2a]/92">
               {children}
             </div>
           </div>
