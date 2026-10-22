@@ -56,11 +56,11 @@ async def decode_neon_session_token_async(token: str) -> dict:
     """
     query = text(
         'SELECT s."userId" AS user_id, s."activeOrganizationId" AS organization_id, '
-        'u.email, u.role, COALESCE(u.banned, false) AS banned '
-        'FROM neon_auth.session AS s '
+        "u.email, u.role, COALESCE(u.banned, false) AS banned "
+        "FROM neon_auth.session AS s "
         'JOIN neon_auth."user" AS u ON u.id = s."userId" '
         'WHERE s.token = :token AND s."expiresAt" > CURRENT_TIMESTAMP '
-        'LIMIT 1'
+        "LIMIT 1"
     )
     async with db_config.get_session() as session:
         row = (await session.execute(query, {"token": token})).mappings().first()
