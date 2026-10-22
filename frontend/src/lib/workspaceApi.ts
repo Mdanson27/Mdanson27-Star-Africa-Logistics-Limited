@@ -401,6 +401,10 @@ export interface ReceivableAgingInvoice {
   days_overdue: number;
   bucket: string;
 }
+export interface ReportingAccount { code:string; name:string; account_type:string; normal_balance:string; system_key:string|null; is_active:boolean; }
+export interface JournalLineInput { account_code:string; debit_ugx?:number; credit_ugx?:number; description?:string|null; }
+export interface JournalEntryRecord { id:string; entry_date:string; reference:string|null; description:string; source_type:string|null; posted_by_email:string; lines:Array<{account_code:string;account_name:string;debit_ugx:number;credit_ugx:number;description:string|null}>; }
+
 export interface ReceivableAgingReport {
   as_of: string;
   current_ugx: number;
@@ -535,6 +539,9 @@ export const workspaceApi = {
 
   reportingDashboard: (months = 6) =>
     request<DashboardAnalytics>(`/reports/dashboard?months=${months}`),
+  reportingAccounts: () => request<ReportingAccount[]>("/reports/accounts"),
+  createJournalEntry: (body:{entry_date:string;reference?:string|null;description:string;lines:JournalLineInput[]}) =>
+    request<JournalEntryRecord>("/reports/journal-entries",{method:"POST",body:JSON.stringify(body)}),
   trialBalance: (asOf?: string) =>
     request<TrialBalanceReport>(`/reports/trial-balance${queryString({ as_of: asOf })}`),
   profitLoss: (fromDate?: string, toDate?: string) =>

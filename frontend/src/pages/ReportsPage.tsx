@@ -16,10 +16,12 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { SyncStatus } from "@/components/common/SyncStatus";
 import { SectionNav } from "@/components/common/SectionNav";
 import { DonutChart, HorizontalBarChart, TrendChart } from "@/components/analytics/Charts";
 import { useAuth } from "@/hooks/useAuth";
+import { useCustomToast } from "@/hooks/useCustomToast";
 import { useBackgroundRefresh } from "@/hooks/useBackgroundRefresh";
 import { readSectionCache, writeSectionCache } from "@/lib/sectionCache";
 import { getErrorMessage } from "@/lib/api";
@@ -123,6 +125,7 @@ const StatementBlock: React.FC<{
 
 export const ReportsPage: React.FC = () => {
   const { user } = useAuth();
+  const { showSuccessToast, showErrorToast, showWarningToast } = useCustomToast();
   const today = localDate();
   const [fromDate, setFromDate] = useState(`${new Date().getFullYear()}-01-01`);
   const [toDate, setToDate] = useState(today);
@@ -143,6 +146,8 @@ export const ReportsPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialCache?.savedAt ?? null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [bankBalanceInput, setBankBalanceInput] = useState("");
+  const [bankBalanceSaving, setBankBalanceSaving] = useState(false);
 
   const load = useCallback(async () => {
     setIsRefreshing(true);
@@ -210,6 +215,41 @@ export const ReportsPage: React.FC = () => {
   ] : [];
 
   const periodLabel = `${fromDate} → ${toDate}`;
+  const cashBankBalance = trialBalance?.rows.find((row) => row.account_code === "1000")?.balance_ugx ?? 0;
+
+  const recordCurrentBankBalance = async () => {
+    const target = Number(bankBalanceInput);
+    if (!Number.isFinite(target) || target < 0) {
+      showWarningToast("Enter a valid current Cash & Bank amount.", "Check amount");
+      return;
+    }
+    const difference = Math.round((target - cashBankBalance) * 100) / 100;
+    if (Math.abs(difference) < 0.01) {
+      showSuccessToast("Cash & Bank already matches that amount.", "No adjustment needed");
+      return;
+    }
+    setBankBalanceSaving(true);
+    try {
+      const increase = difference > 0;
+      const amount = Math.abs(difference);
+      await workspaceApi.createJournalEntry({
+        entry_date: today,
+        reference: `BANK-BAL-${today}`,
+        description: `Cash & Bank balance adjustment to ${money(target)}`,
+        lines: [
+          { account_code: "1000", debit_ugx: increase ? amount : 0, credit_ugx: increase ? 0 : amount, description: "Set Cash & Bank to actual current balance" },
+          { account_code: "3000", debit_ugx: increase ? 0 : amount, credit_ugx: increase ? amount : 0, description: "Opening/current balance equity adjustment" },
+        ],
+      });
+      setBankBalanceInput("");
+      await load();
+      showSuccessToast(`Cash & Bank updated to ${money(target)}.`, "Bank balance recorded");
+    } catch (error) {
+      showErrorToast(getErrorMessage(error, "The bank balance could not be recorded."), "Bank balance not saved");
+    } finally {
+      setBankBalanceSaving(false);
+    }
+  };
 
   return (
     <div className="min-w-0 max-w-full space-y-6">
@@ -265,6 +305,13 @@ export const ReportsPage: React.FC = () => {
             <Metric label="Net profit" value={money(profitLoss?.net_profit_ugx ?? 0)} hint={periodLabel} icon={<TrendingUp className="h-4 w-4" />} />
             <Metric label="Net cash flow" value={money(cashFlow?.net_cash_flow_ugx ?? 0)} hint={periodLabel} icon={<CircleDollarSign className="h-4 w-4" />} />
           </div>
+          <Card className="border-primary/20">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr_auto] lg:items-end">
+              <div><p className="text-xs text-muted-foreground">Current ledger Cash & Bank</p><p className="mt-1 text-xl font-bold">{money(cashBankBalance)}</p><p className="mt-1 text-[10px] text-muted-foreground">Account 1000 · automatically changes with receipts and recorded expenses.</p></div>
+              <Input label="Actual current Cash & Bank balance (UGX)" type="number" min="0" step="0.01" placeholder="Enter the amount currently available" value={bankBalanceInput} onChange={(event)=>setBankBalanceInput(event.target.value)} helperText="Use this to set or reconcile the ledger to the amount you actually have now." />
+              <Button onClick={()=>void recordCurrentBankBalance()} disabled={bankBalanceSaving || !bankBalanceInput}>{bankBalanceSaving?"Recording…":"Record balance"}</Button>
+            </div>
+          </Card>
 
           <Card className="p-0 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><div><h2 className="font-semibold">Trial Balance</h2><p className="text-xs text-muted-foreground">As at {toDate}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${trialBalance?.balanced ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"}`}>{trialBalance?.balanced ? "Debits = Credits" : "Out of balance"}</span></div>
