@@ -432,6 +432,7 @@ class TestBusinessPreviewWithoutStorage:
                 "client_name": client["name"],
                 "status": "draft",
                 "issue_date": "2026-10-22",
+                "amount_ugx": 500000,
                 "items": [
                     {
                         "description": "Resilient quotation line",
