@@ -11,10 +11,28 @@ $RuntimeConfig = Join-Path $Root "frontend\public\runtime-config.json"
 $Cloudflared = "C:\Program Files (x86)\cloudflared\cloudflared.exe"
 $LocalApi = "http://127.0.0.1:$ApiPort"
 
-function Assert-StarAfricaApi([string]$BaseUrl) {
-    $ready = Invoke-WebRequest "$BaseUrl/health/ready" -UseBasicParsing -TimeoutSec 15
+function Assert-StarAfricaApi([string]$BaseUrl, [bool]$CheckCors = $false) {
+    $origin = "https://mdanson27.github.io"
+    $ready = $null
+    $lastError = $null
+    for ($attempt = 0; $attempt -lt 20 -and -not $ready; $attempt++) {
+        try {
+            $headers = if ($CheckCors) { @{ Origin = $origin } } else { @{} }
+            $ready = Invoke-WebRequest "$BaseUrl/health/ready" -Headers $headers -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+        }
+        catch {
+            $lastError = $_
+            Start-Sleep -Seconds 1
+        }
+    }
+    if (-not $ready) {
+        throw "Star Africa readiness check never became reachable at $BaseUrl. Last error: $($lastError.Exception.Message)"
+    }
     if ($ready.StatusCode -ne 200) {
         throw "Star Africa readiness check failed at $BaseUrl (HTTP $($ready.StatusCode))."
+    }
+    if ($CheckCors -and $ready.Headers['Access-Control-Allow-Origin'] -ne $origin) {
+        throw "CORS validation failed at $BaseUrl/health/ready for origin $origin."
     }
 
     try {
@@ -56,7 +74,18 @@ if (-not $publicUrl) {
     throw "Cloudflare did not return a quick-tunnel URL. See $ErrLog"
 }
 
-Assert-StarAfricaApi $publicUrl
+Assert-StarAfricaApi $publicUrl $true
+
+$preflightHeaders = @{
+    Origin = "https://mdanson27.github.io"
+    "Access-Control-Request-Method" = "GET"
+    "Access-Control-Request-Headers" = "authorization"
+}
+$preflight = Invoke-WebRequest "$publicUrl/api/v1/auth/session/verify" -Method OPTIONS -Headers $preflightHeaders -UseBasicParsing -TimeoutSec 15
+if ($preflight.StatusCode -ne 204 -or $preflight.Headers['Access-Control-Allow-Origin'] -ne "https://mdanson27.github.io") {
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    throw "Star Africa tunnel failed browser CORS preflight validation."
+}
 
 $config = [ordered]@{
     updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
