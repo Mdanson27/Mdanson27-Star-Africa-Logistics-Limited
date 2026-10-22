@@ -32,9 +32,9 @@ export const LoginMascot: React.FC<LoginMascotProps> = ({ mode, email }) => {
   const emailMode = mode === "email";
 
   return (
-    <div className="mb-3 flex flex-col items-center text-center">
-      <div className="relative">
-        <div className="star-africa-mascot-float relative flex h-[82px] w-[82px] items-center justify-center rounded-full border border-[#dce5ee] bg-white shadow-[0_20px_55px_rgba(2,46,85,0.13)] dark:border-white/10 dark:bg-[#0b1f31]">
+    <div className="mb-2 flex flex-col items-center text-center sm:mb-3">
+      <div className="relative h-[66px] w-[66px] sm:h-[82px] sm:w-[82px]">
+        <div className="star-africa-mascot-float absolute left-1/2 top-1/2 flex h-[82px] w-[82px] -translate-x-1/2 -translate-y-1/2 scale-[0.78] items-center justify-center rounded-full border border-[#dce5ee] bg-white shadow-[0_20px_55px_rgba(2,46,85,0.13)] sm:scale-100 dark:border-white/10 dark:bg-[#0b1f31]">
           <div className="absolute inset-[6px] rounded-full bg-[radial-gradient(circle_at_35%_25%,#ffffff_0%,#f7fbff_46%,#edf4fb_100%)] dark:bg-[radial-gradient(circle_at_35%_25%,#16334d_0%,#0c2134_55%,#081725_100%)]" />
 
           <div className="relative flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#0A4F82] shadow-[inset_0_0_0_2px_rgba(255,255,255,0.08)]">
@@ -75,10 +75,10 @@ export const LoginMascot: React.FC<LoginMascotProps> = ({ mode, email }) => {
         <div className="absolute -bottom-2 left-1/2 h-2 w-14 -translate-x-1/2 rounded-full bg-[#0A4F82]/15 blur-md" />
       </div>
 
-      <p className="mt-3 text-xs font-semibold text-[#0b2c49] dark:text-white">
+      <p className="mt-1.5 text-[11px] font-semibold text-[#0b2c49] sm:mt-3 sm:text-xs dark:text-white">
         {getMessage(mode, email)}
       </p>
-      <p className="mt-0.5 max-w-[280px] text-[10px] leading-4 text-muted-foreground">
+      <p className="mt-0.5 hidden max-w-[280px] text-[10px] leading-4 text-muted-foreground sm:block">
         {getSupportText(mode)}
       </p>
     </div>

@@ -11,8 +11,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   const year = new Date().getFullYear();
 
   return (
-    <main className="h-dvh overflow-hidden bg-[#f4f7fb] text-foreground dark:bg-[#06111c]">
-      <div className="grid h-full lg:grid-cols-[0.98fr_1.02fr]">
+    <main className="min-h-dvh overflow-x-hidden bg-[#f4f7fb] text-foreground dark:bg-[#06111c] lg:h-dvh lg:overflow-hidden">
+      <div className="grid min-h-dvh lg:h-full lg:grid-cols-[0.98fr_1.02fr]">
         <section className="star-africa-auth-panel relative hidden overflow-hidden px-12 py-10 text-white lg:flex lg:flex-col lg:justify-between xl:px-16 xl:py-12">
           <div className="pointer-events-none absolute inset-0 opacity-[0.045] [background-image:linear-gradient(rgba(255,255,255,.3)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.3)_1px,transparent_1px)] [background-size:54px_54px]" />
           <div className="pointer-events-none absolute -left-36 top-24 h-80 w-80 rounded-full bg-[#DC1D2D]/16 blur-3xl" />
@@ -41,21 +41,21 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
           </div>
         </section>
 
-        <section className="star-africa-auth-content relative flex h-full min-h-0 flex-col overflow-hidden">
+        <section className="star-africa-auth-content relative flex min-h-dvh flex-col overflow-x-hidden overflow-y-auto lg:h-full lg:min-h-0 lg:overflow-hidden">
           <div className="pointer-events-none absolute right-[-80px] top-[10%] h-64 w-64 rounded-full bg-[#DC1D2D]/[0.045] blur-3xl" />
           <div className="pointer-events-none absolute bottom-[4%] left-[-70px] h-64 w-64 rounded-full bg-[#022E55]/[0.055] blur-3xl" />
 
-          <div className="absolute right-6 top-6 z-20 md:right-10 md:top-8">
+          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6 md:right-10 md:top-8">
             <Appearance />
           </div>
 
-          <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-4 py-3 sm:px-6 md:px-8">
-            <div className="w-full max-w-[500px] max-h-[calc(100dvh-24px)] overflow-hidden rounded-[28px] border border-[#d9e3ed] bg-white/94 p-5 shadow-[0_24px_80px_rgba(2,46,85,0.09)] backdrop-blur-xl sm:p-6 dark:border-[#3977a6]/25 dark:bg-[#0b1a2a]/92">
+          <div className="relative z-10 flex flex-1 items-start justify-center px-3 pb-4 pt-14 sm:px-5 sm:pb-6 sm:pt-16 md:px-8 lg:min-h-0 lg:items-center lg:py-3">
+            <div className="w-full max-w-[500px] overflow-visible rounded-[22px] border border-[#d9e3ed] bg-white/94 p-4 shadow-[0_24px_80px_rgba(2,46,85,0.09)] backdrop-blur-xl sm:rounded-[28px] sm:p-6 dark:border-[#3977a6]/25 dark:bg-[#0b1a2a]/92 lg:max-h-[calc(100dvh-24px)] lg:overflow-y-auto">
               {children}
             </div>
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 px-6 text-center text-[10px] text-muted-foreground lg:hidden">
+          <div className="relative z-10 px-4 pb-4 text-center text-[10px] text-muted-foreground lg:hidden">
             © {year} {brand.legalName} · Powered by {brand.poweredBy}
           </div>
         </section>
