@@ -59,7 +59,7 @@ export function parseApiError(error: unknown, response?: Response): ApiError {
 
   if (status === 401) {
     return new ApiError(
-      "Your Star Africa Logistics session has expired. Please sign in again.",
+      "Star Africa Logistics could not verify your secure session. Please sign in again.",
       status,
       error,
     );

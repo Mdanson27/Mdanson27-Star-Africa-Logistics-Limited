@@ -53,7 +53,7 @@ export function notifySessionExpired(): void {
   clearCachedAccessToken();
   sessionStorage.setItem(
     AUTH_NOTICE_KEY,
-    "Your Star Africa Logistics session expired. Please sign in again to continue.",
+    "We could not verify your secure Star Africa Logistics session. Please sign in again.",
   );
   window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT));
 }

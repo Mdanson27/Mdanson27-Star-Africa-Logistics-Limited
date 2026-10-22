@@ -38,7 +38,7 @@ const ALL_TABS: NavItem[] = [
 ];
 
 const AuthenticatedApp: React.FC = () => {
-  const { isAuthenticated, isPlatformAdmin, refreshProfile } = useAuth();
+  const { isAuthenticated, authState, isPlatformAdmin, refreshProfile } = useAuth();
   const { refreshHealth } = useSystemHealth();
   const [currentTab, setCurrentTab] = useState<NavItem>("home");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -63,7 +63,7 @@ const AuthenticatedApp: React.FC = () => {
     setCurrentTab(tab);
   };
 
-  if (!isAuthenticated) return <LoginPage />;
+  if (authState !== "verified" || !isAuthenticated) return <LoginPage />;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

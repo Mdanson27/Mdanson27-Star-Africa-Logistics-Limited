@@ -40,6 +40,7 @@ pytestmark = pytest.mark.asyncio
 
 _REGISTER_URL = "/api/v1/users/register"
 _LOGIN_URL = "/api/v1/auth/login"
+_VERIFY_URL = "/api/v1/auth/session/verify"
 _ME_URL = "/api/v1/users/me"
 
 _BASE_USER = {
@@ -138,6 +139,28 @@ class TestLogin:
             _LOGIN_URL,
             json={"email": "ghost@example.com", "password": "DoesNotMatter"},
         )
+        assert resp.status_code == 401
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Session verification gate
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestSessionVerification:
+    async def test_verify_session_authenticated(self, registered_user, async_client: AsyncClient):
+        resp = await async_client.get(
+            _VERIFY_URL,
+            headers=_auth_headers(registered_user["token"]),
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["verified"] is True
+        assert body["email"] == registered_user["email"]
+        assert body["user_id"]
+
+    async def test_verify_session_requires_bearer(self, async_client: AsyncClient):
+        resp = await async_client.get(_VERIFY_URL)
         assert resp.status_code == 401
 
 

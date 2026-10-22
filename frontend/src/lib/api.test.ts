@@ -138,7 +138,7 @@ describe("central authenticated API client", () => {
 
 describe("API error messages", () => {
   it.each([
-    [401, "session has expired"],
+    [401, "could not verify"],
     [403, "do not have permission"],
     [404, "could not be found"],
     [409, "conflicts"],

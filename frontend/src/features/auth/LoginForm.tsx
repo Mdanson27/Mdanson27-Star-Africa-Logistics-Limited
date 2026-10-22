@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Lock, Mail, PhoneCall } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -29,6 +29,8 @@ export const LoginForm: React.FC = () => {
     requestPasswordReset,
     resetPasswordWithOtp,
     authConfigured,
+    authState,
+    isLoading: authBusy,
   } = useAuth();
   const { showErrorToast, showSuccessToast, showWarningToast } = useCustomToast();
 
@@ -37,7 +39,7 @@ export const LoginForm: React.FC = () => {
   const [activeField, setActiveField] = useState<MascotMode>("idle");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(() => consumeAuthNotice());
+  const [serverError, setServerError] = useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [resetOpen, setResetOpen] = useState<boolean>(false);
@@ -48,6 +50,23 @@ export const LoginForm: React.FC = () => {
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
   const [resetBusy, setResetBusy] = useState<boolean>(false);
   const [resetError, setResetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authState === "signed_out" || authState === "auth_failed") {
+      setServerError(consumeAuthNotice());
+      return;
+    }
+    setServerError(null);
+  }, [authState]);
+
+  const verificationMessage =
+    authState === "booting" || authState === "verifying_neon"
+      ? "Checking your secure Star Africa Logistics session?"
+      : authState === "verifying_api"
+        ? "Verifying access with the Star Africa Logistics server?"
+        : authState === "authenticating"
+          ? "Signing you in securely?"
+          : null;
 
   const emailHelper = useMemo(() => {
     if (activeField !== "email") return "Use the email linked to your Star Africa Logistics workspace.";
@@ -263,6 +282,12 @@ export const LoginForm: React.FC = () => {
 
       <LoginMascot mode={activeField} email={email} />
 
+      {verificationMessage && (
+        <Alert className="mb-3">
+          <AlertDescription>{verificationMessage}</AlertDescription>
+        </Alert>
+      )}
+
       {serverError && (
         <Alert variant={isRateLimited ? "warning" : "destructive"} className="mb-3">
           <AlertDescription>{serverError}</AlertDescription>
@@ -342,7 +367,7 @@ export const LoginForm: React.FC = () => {
           type="submit"
           variant="primary"
           className="mt-1 h-11 w-full rounded-xl star-africa-primary-action font-semibold transition hover:-translate-y-0.5"
-          loading={isLoading}
+          loading={isLoading || authBusy}
         >
           Sign in
         </Button>
@@ -360,7 +385,7 @@ export const LoginForm: React.FC = () => {
         type="button"
         variant="outline"
         onClick={handleGoogleSignIn}
-        disabled={!authConfigured}
+        disabled={!authConfigured || authBusy || isLoading}
         className="h-10 w-full gap-3 rounded-xl border-[#d8e0ea] bg-white text-[#17324a] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:shadow-md sm:h-11 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
       >
         <GoogleMark />
