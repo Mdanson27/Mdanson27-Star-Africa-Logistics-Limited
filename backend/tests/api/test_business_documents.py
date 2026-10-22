@@ -402,3 +402,65 @@ class TestBusinessDocumentsWorkflow:
         assert restored.status_code in {200, 201}, restored.text
         assert restored.json()["document"]["is_deleted"] is False
         assert mock_commercial_storage
+
+
+class TestBusinessPreviewWithoutStorage:
+    async def test_preview_unlocks_quotation_conversion_when_storage_is_offline(
+        self,
+        async_client: AsyncClient,
+        registered_user: dict,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr("app.domain.business.services.storage_configured", lambda: False)
+        suffix = uuid.uuid4().hex[:8]
+        headers = {"Authorization": f"Bearer {registered_user['token']}"}
+
+        client_res = await async_client.post(
+            "/api/v1/business/clients",
+            headers=headers,
+            json={"name": f"No Storage Client {suffix}"},
+        )
+        assert client_res.status_code == 201, client_res.text
+        client = client_res.json()
+
+        quote_res = await async_client.post(
+            "/api/v1/business/quotations",
+            headers=headers,
+            json={
+                "quotation_number": "AUTO",
+                "client_id": client["id"],
+                "client_name": client["name"],
+                "status": "draft",
+                "issue_date": "2026-10-22",
+                "items": [
+                    {
+                        "description": "Resilient quotation line",
+                        "quantity": 1,
+                        "unit_price_ugx": 500000,
+                    }
+                ],
+            },
+        )
+        assert quote_res.status_code == 201, quote_res.text
+        quote = quote_res.json()
+
+        preview = await async_client.post(
+            f"/api/v1/business/quotations/{quote['id']}/preview",
+            headers=headers,
+        )
+        assert preview.status_code in {200, 201}, preview.text
+        assert preview.json()["stored"] is False
+        assert preview.json()["document_id"] is None
+
+        listing = await async_client.get("/api/v1/business/quotations", headers=headers)
+        assert listing.status_code == 200, listing.text
+        previewed = next(row for row in listing.json() if row["id"] == quote["id"])
+        assert previewed["has_current_preview"] is True
+
+        conversion = await async_client.post(
+            f"/api/v1/business/quotations/{quote['id']}/convert-to-invoice",
+            headers=headers,
+            json={"issue_date": "2026-10-22", "due_date": "2026-11-22"},
+        )
+        assert conversion.status_code == 201, conversion.text
+        assert conversion.json()["source_quotation_id"] == quote["id"]

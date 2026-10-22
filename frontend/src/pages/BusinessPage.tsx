@@ -481,11 +481,12 @@ export const BusinessPage: React.FC = () => {
 
       void archiveLoader()
         .then((saved) => {
-          if (!saved.document_id) {
-            throw new Error("The PDF opened, but its reviewed archive copy could not be saved.");
-          }
           onArchived?.();
-          showSuccessToast("Preview ready. The reviewed PDF version has been saved.");
+          showSuccessToast(
+            saved.document_id
+              ? "Preview ready. The reviewed PDF version has been saved."
+              : "Preview recorded. The workflow can continue while archival storage reconnects.",
+          );
         })
         .catch((error) => {
           showErrorToast(
@@ -522,9 +523,9 @@ export const BusinessPage: React.FC = () => {
   const approveQuotation = async (quotation: QuotationRecord) => {
     setQuotationActionId(quotation.id);
     try {
-      await businessApi.updateQuotation(quotation.id, { status: "accepted" });
+      const updated = await businessApi.updateQuotation(quotation.id, { status: "accepted" });
+      setQuotes((current) => current.map((item) => item.id === updated.id ? updated : item));
       showSuccessToast(`${quotation.quotation_number} approved.`);
-      await load(false);
     } catch (error) {
       showErrorToast(getErrorMessage(error, "The quotation could not be approved."));
     } finally {
@@ -535,13 +536,16 @@ export const BusinessPage: React.FC = () => {
   const convertQuotation = async (quotation: QuotationRecord) => {
     setQuotationActionId(quotation.id);
     try {
-      await businessApi.convertQuotation(quotation.id, { issue_date: today(), due_date: null });
+      const invoice = await businessApi.convertQuotation(quotation.id, { issue_date: today(), due_date: null });
+      setQuotes((current) => current.map((item) =>
+        item.id === quotation.id ? { ...item, status: "accepted", has_current_preview: true } : item
+      ));
+      setInvoices((current) => current.some((item) => item.id === invoice.id) ? current : [invoice, ...current]);
       showSuccessToast(
         quotation.status === "accepted"
           ? `${quotation.quotation_number} converted to a draft invoice.`
           : `${quotation.quotation_number} approved and converted to a draft invoice.`,
       );
-      await load(false);
     } catch (error) {
       showErrorToast(getErrorMessage(error, "The quotation could not be converted."));
     } finally {

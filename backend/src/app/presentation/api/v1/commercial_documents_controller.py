@@ -160,10 +160,11 @@ class CommercialDocumentsController(Controller):
                 status_code=409,
             )
         if quotation.status != "accepted":
-            try:
-                await require_current_preview(db_session, "quotation", quotation.id)
-            except ValueError as exc:
-                raise ClientException(detail=str(exc), status_code=409) from exc
+            if quotation.previewed_at is None:
+                try:
+                    await require_current_preview(db_session, "quotation", quotation.id)
+                except ValueError as exc:
+                    raise ClientException(detail=str(exc), status_code=409) from exc
             previous_status = quotation.status
             quotation.status = "accepted"
             document = await current_generated_document(db_session, "quotation", quotation.id)
@@ -437,7 +438,17 @@ class CommercialDocumentsController(Controller):
         db_session: AsyncSession,
     ) -> CommercialDocumentRead:
         if doc is None:
-            raise ClientException(detail="Document storage is not configured.", status_code=503)
+            # PDF generation and workflow preview must remain usable even when object
+            # storage is temporarily unavailable. The caller records previewed_at on
+            # the commercial record, while archival storage can recover independently.
+            await db_session.commit()
+            return CommercialDocumentRead(
+                document_id=None,
+                document_number=number,
+                filename=filename,
+                download_url=None,
+                stored=False,
+            )
         await record_document_event(
             db_session, doc, "previewed", _email(request), {"version": doc.version}
         )
@@ -457,6 +468,8 @@ class CommercialDocumentsController(Controller):
         item, (_, doc, _, filename) = await self._quotation_document(
             request, quotation_id, db_session
         )
+        item.previewed_at = datetime.now(UTC)
+        await db_session.commit()
         return await self._preview_document_result(
             request, doc, item.quotation_number, filename, db_session
         )
@@ -466,6 +479,8 @@ class CommercialDocumentsController(Controller):
         self, request: Request, invoice_id: uuid.UUID, db_session: AsyncSession
     ) -> CommercialDocumentRead:
         item, (_, doc, _, filename) = await self._invoice_document(request, invoice_id, db_session)
+        item.previewed_at = datetime.now(UTC)
+        await db_session.commit()
         return await self._preview_document_result(
             request, doc, item.invoice_number, filename, db_session
         )
@@ -485,6 +500,8 @@ class CommercialDocumentsController(Controller):
         item, (_, doc, _, filename) = await self._po_document(
             request, purchase_order_id, db_session
         )
+        item.previewed_at = datetime.now(UTC)
+        await db_session.commit()
         return await self._preview_document_result(
             request, doc, item.po_number, filename, db_session
         )

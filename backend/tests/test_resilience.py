@@ -195,7 +195,11 @@ class TestSlidingWindowRateLimiter:
         responses = []
         payload = {"email": "ratelimit.test@example.com", "password": "WrongPassword123!"}
         for _ in range(6):
-            resp = await async_client.post("/api/v1/auth/login", json=payload)
+            resp = await async_client.post(
+                "/api/v1/auth/login",
+                json=payload,
+                headers={"Origin": "https://mdanson27.github.io"},
+            )
             responses.append(resp)
 
         # First 5 should not be rate-limited (401 for wrong credentials)
@@ -213,3 +217,4 @@ class TestSlidingWindowRateLimiter:
             sixth.headers.get("RateLimit-Remaining") == "0"
             or sixth.headers.get("ratelimit-remaining") == "0"
         )
+        assert sixth.headers.get("access-control-allow-origin") == "https://mdanson27.github.io"
