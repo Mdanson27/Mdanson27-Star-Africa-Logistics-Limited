@@ -24,6 +24,11 @@ function decodeJwtExpiry(token: string): number | null {
 }
 
 function isTokenFresh(token: string): boolean {
+  // Managed Better Auth sessions are opaque server-side tokens, not JWTs.
+  // Their expiry is validated by the API against neon_auth.session. JWTs keep
+  // the local exp check for backwards compatibility with local/test auth.
+  if (token.split(".").length !== 3) return token.trim().length > 0;
+
   const expiry = decodeJwtExpiry(token);
   if (!expiry) return false;
 
@@ -76,9 +81,9 @@ export async function getAccessToken(forceRefresh = false): Promise<string | nul
 
   tokenRefreshPromise = (async () => {
     try {
-      // Better Auth's session.token is a browser session identifier, not the
-      // signed JWT our API validates against Neon JWKS. getNeonAuthJWTToken()
-      // exchanges the authenticated cookie session through the /token endpoint.
+      // Neon Managed Better Auth provides an opaque browser session token.
+      // The API validates it server-side against neon_auth.session and its
+      // linked user record rather than trusting client-side token claims.
       const token = await getNeonAuthJWTToken();
 
       if (!token || !isTokenFresh(token)) {
