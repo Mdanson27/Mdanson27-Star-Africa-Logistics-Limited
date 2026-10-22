@@ -56,7 +56,7 @@ class HealthController(Controller):
 
         # 1. PostgreSQL check
         try:
-            async with asyncio.timeout(5):
+            async with asyncio.timeout(12):
                 res = await db_session.execute(text("SELECT 1"))
             if res.scalar() == 1:
                 results["database"] = "healthy"
