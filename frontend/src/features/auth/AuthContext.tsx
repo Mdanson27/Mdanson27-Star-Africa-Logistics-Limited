@@ -71,29 +71,6 @@ function mapNeonUser(raw: Record<string, unknown>): AuthUser {
   };
 }
 
-function readCachedUser(): AuthUser | null {
-  try {
-    const value = localStorage.getItem(AUTH_USER_CACHE_KEY);
-    if (!value) return null;
-
-    const parsed = JSON.parse(value) as Partial<AuthUser>;
-    if (!parsed.id || !parsed.email) return null;
-
-    return {
-      id: String(parsed.id),
-      email: String(parsed.email).trim().toLowerCase(),
-      full_name: String(parsed.full_name || parsed.email),
-      is_active: parsed.is_active !== false,
-      is_superuser:
-        String(parsed.email).trim().toLowerCase() === PLATFORM_ADMIN_EMAIL,
-      role: String(parsed.role || "authenticated"),
-      image: typeof parsed.image === "string" ? parsed.image : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function cacheUser(user: AuthUser): void {
   localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(user));
 }
@@ -114,11 +91,12 @@ function authErrorMessage(
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const initialToken = getCachedAccessToken();
-  const [user, setUser] = useState<AuthUser | null>(() =>
-    initialToken ? readCachedUser() : null,
-  );
-  const [token, setToken] = useState<string | null>(initialToken);
+  // Never bootstrap authenticated UI from localStorage. Neon Managed Auth is
+  // the source of truth, so a reload must verify the live browser session
+  // before protected screens mount. This prevents the dashboard-flash -> 401
+  // -> forced-login loop caused by stale tokens from older auth revisions.
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const clearSession = useCallback(() => {
@@ -136,13 +114,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const cachedToken = getCachedAccessToken();
-    const cachedUser = cachedToken ? readCachedUser() : null;
-
-    if (cachedToken && cachedUser) {
-      setToken(cachedToken);
-      setUser(cachedUser);
-    }
+    // Clear pre-PR13 cached credentials before asking Neon for the live
+    // session. A hard refresh preserves localStorage, so stale auth material
+    // must not be allowed to influence the current login state.
+    clearCachedAccessToken();
+    clearCachedUser();
 
     try {
       const sessionResult = await getNeonAuthClient().getSession();
@@ -156,16 +132,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         !sessionData?.session ||
         !sessionData.user
       ) {
-        // A valid cached JWT remains sufficient for the frontend until expiry.
-        // The API still cryptographically validates every request server-side.
-        if (cachedToken && cachedUser) return;
         clearSession();
         return;
       }
 
       const jwtToken = await getAccessToken(true);
       if (!jwtToken) {
-        if (cachedToken && cachedUser) return;
         clearSession();
         return;
       }
@@ -177,7 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(jwtToken);
       setUser(mappedUser);
     } catch {
-      if (!(cachedToken && cachedUser)) clearSession();
+      clearSession();
     } finally {
       setIsLoading(false);
     }
