@@ -5,7 +5,9 @@ import threading
 from functools import lru_cache
 
 import jwt
+from sqlalchemy import text
 
+from app.core.database import db_config
 from app.core.settings import settings
 
 _jwks_lookup_lock = threading.Lock()
@@ -42,3 +44,33 @@ def _decode_neon_access_token_sync(token: str) -> dict:
 async def decode_neon_access_token_async(token: str) -> dict:
     """Validate Neon JWTs without blocking Litestar's event loop on JWKS I/O."""
     return await asyncio.to_thread(_decode_neon_access_token_sync, token)
+
+
+async def decode_neon_session_token_async(token: str) -> dict:
+    """Validate a managed Better Auth opaque session token against Neon Auth tables.
+
+    Neon Managed Better Auth stores session tokens server-side in ``neon_auth.session``.
+    GitHub Pages can therefore send the browser session token to this API and the API
+    can validate it directly in the same Neon database, including expiry and banned-user
+    state, without trusting token contents supplied by the browser.
+    """
+    query = text(
+        'SELECT s."userId" AS user_id, s."activeOrganizationId" AS organization_id, '
+        'u.email, u.role, COALESCE(u.banned, false) AS banned '
+        'FROM neon_auth.session AS s '
+        'JOIN neon_auth."user" AS u ON u.id = s."userId" '
+        'WHERE s.token = :token AND s."expiresAt" > CURRENT_TIMESTAMP '
+        'LIMIT 1'
+    )
+    async with db_config.get_session() as session:
+        row = (await session.execute(query, {"token": token})).mappings().first()
+
+    if not row or bool(row["banned"]):
+        raise ValueError("Invalid, expired, or disabled Neon Auth session")
+
+    return {
+        "sub": str(row["user_id"]),
+        "email": str(row["email"] or "").lower(),
+        "role": str(row["role"] or "authenticated"),
+        "organization_id": str(row["organization_id"] or ""),
+    }

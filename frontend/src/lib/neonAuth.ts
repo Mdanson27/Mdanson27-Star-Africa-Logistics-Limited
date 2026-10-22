@@ -17,26 +17,15 @@ export function getNeonAuthClient(): StarAfricaLogisticsNeonAuthClient {
 }
 
 export async function getNeonAuthJWTToken(): Promise<string | null> {
-  if (!neonAuth || !authUrl) return null;
+  if (!authClient) return null;
 
-  // Neon Managed Better Auth keeps the browser session token separate from the
-  // JWKS-verifiable JWT used by external APIs. Request the short-lived signed
-  // JWT from Better Auth's JWT plugin endpoint instead of reusing session.token.
-  const response = await fetch(`${authUrl}/token`, {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-
-  if (!response.ok) return null;
-
-  const payload = (await response.json()) as { token?: unknown };
-  return typeof payload.token === "string" && payload.token.trim()
-    ? payload.token.trim()
-    : null;
+  // Neon Managed Better Auth exposes an opaque browser session token. Star
+  // Africa's API validates that token server-side against neon_auth.session,
+  // including session expiry and the linked user record.
+  const result = await authClient.getSession();
+  const data = result.data as { session?: { token?: unknown } } | null | undefined;
+  const token = data?.session?.token;
+  return typeof token === "string" && token.trim() ? token.trim() : null;
 }
 
 const STAR_AFRICA_GITHUB_PAGES_PATH = "/Mdanson27-Star-Africa-Logistics-Limited/";

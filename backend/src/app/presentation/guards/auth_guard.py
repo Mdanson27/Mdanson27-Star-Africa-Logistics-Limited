@@ -20,7 +20,7 @@ from litestar.connection import ASGIConnection
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.types import RouteHandlerType
 
-from app.core.neon_jwt import decode_neon_access_token_async
+from app.core.neon_jwt import decode_neon_access_token_async, decode_neon_session_token_async
 from app.core.security import decode_access_token, is_token_revoked
 from app.core.settings import settings
 
@@ -53,11 +53,17 @@ class JWTAuthGuard:
         try:
             if settings.NEON_AUTH_JWKS_URL:
                 environment = settings.ENVIRONMENT.lower()
-                algorithm = str(jwt.get_unverified_header(token).get("alg") or "").upper()
-                if environment != "production" and algorithm == "HS256":
-                    payload = decode_access_token(token)
+                looks_like_jwt = token.count(".") == 2
+
+                if looks_like_jwt:
+                    algorithm = str(jwt.get_unverified_header(token).get("alg") or "").upper()
+                    if environment != "production" and algorithm == "HS256":
+                        payload = decode_access_token(token)
+                    else:
+                        payload = await decode_neon_access_token_async(token)
+                        token_is_neon = True
                 else:
-                    payload = await decode_neon_access_token_async(token)
+                    payload = await decode_neon_session_token_async(token)
                     token_is_neon = True
             else:
                 payload = decode_access_token(token)
