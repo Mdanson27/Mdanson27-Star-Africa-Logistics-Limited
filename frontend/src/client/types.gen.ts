@@ -1755,6 +1755,24 @@ export type ApiV1AuthLogoutLogoutResponses = {
 
 export type ApiV1AuthLogoutLogoutResponse = ApiV1AuthLogoutLogoutResponses[keyof ApiV1AuthLogoutLogoutResponses];
 
+export type ApiV1AuthSessionVerifyVerifySessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/session/verify';
+};
+
+export type ApiV1AuthSessionVerifyVerifySessionResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApiV1AuthSessionVerifyVerifySessionResponse = ApiV1AuthSessionVerifyVerifySessionResponses[keyof ApiV1AuthSessionVerifyVerifySessionResponses];
+
 export type ApiV1AuthTokenTokenData = {
     body?: never;
     path?: never;

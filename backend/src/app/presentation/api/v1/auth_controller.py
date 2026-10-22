@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import ClassVar
 
-from litestar import Controller, post
+from litestar import Controller, get, post
 from litestar.connection import Request
 from litestar.di import Provide
 from litestar.exceptions import NotAuthorizedException
@@ -104,6 +104,22 @@ class AuthController(Controller):
         user_repo: IUserRepository,
     ) -> TokenResponse:
         return await self._authenticate(request, user_repo)
+
+    @get(
+        path="/session/verify",
+        guards=[JWTAuthGuard()],
+        status_code=HTTP_200_OK,
+        summary="Verify active Star Africa session",
+        description="Validates the caller before the frontend is allowed to mount protected application screens.",
+    )
+    async def verify_session(self, request: Request) -> dict[str, object]:
+        return {
+            "verified": True,
+            "user_id": str(request.scope.get("user_id") or ""),
+            "email": str(request.scope.get("email") or ""),
+            "role": str(request.scope.get("role") or "authenticated"),
+            "is_superuser": bool(request.scope.get("is_superuser", False)),
+        }
 
     @post(
         path="/logout",

@@ -1,14 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { ApiError } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { clearSectionCaches } from "@/lib/sectionCache";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
   cacheAccessToken,
   clearCachedAccessToken,
-  getAccessToken,
   getCachedAccessToken,
 } from "@/lib/authSession";
 import {
+  clearAuthCallbackVerifier,
   getAuthCallbackUrl,
   getNeonAuthClient,
   isNeonAuthConfigured,
@@ -27,11 +27,14 @@ export interface AuthUser {
 const PLATFORM_ADMIN_EMAIL = (import.meta.env.VITE_PLATFORM_ADMIN_EMAIL || "").trim().toLowerCase();
 const AUTH_USER_CACHE_KEY = "starafrica.authUser";
 
+export type AuthState = "booting" | "signed_out" | "authenticating" | "verifying_neon" | "verifying_api" | "verified" | "auth_failed";
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  authState: AuthState;
   isAdmin: boolean;
   isPlatformAdmin: boolean;
   authConfigured: boolean;
@@ -98,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authState, setAuthState] = useState<AuthState>("booting");
 
   const clearSession = useCallback(() => {
     clearCachedAccessToken();
@@ -105,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearSectionCaches();
     setToken(null);
     setUser(null);
+    setAuthState("signed_out");
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -114,43 +119,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Clear pre-PR13 cached credentials before asking Neon for the live
-    // session. A hard refresh preserves localStorage, so stale auth material
-    // must not be allowed to influence the current login state.
     clearCachedAccessToken();
     clearCachedUser();
+    setUser(null);
+    setToken(null);
+    setIsLoading(true);
+    setAuthState("verifying_neon");
 
     try {
       const sessionResult = await getNeonAuthClient().getSession();
+      clearAuthCallbackVerifier();
       const sessionData = sessionResult.data as
-        | { session?: unknown; user?: Record<string, unknown> }
+        | { session?: { token?: unknown }; user?: Record<string, unknown> }
         | null
         | undefined;
 
-      if (
-        sessionResult.error ||
-        !sessionData?.session ||
-        !sessionData.user
-      ) {
+      if (sessionResult.error || !sessionData?.session || !sessionData.user) {
         clearSession();
         return;
       }
 
-      const jwtToken = await getAccessToken(true);
-      if (!jwtToken) {
+      const sessionToken =
+        typeof sessionData.session.token === "string"
+          ? sessionData.session.token.trim()
+          : "";
+      if (!sessionToken) {
         clearSession();
         return;
+      }
+
+      cacheAccessToken(sessionToken);
+      setAuthState("verifying_api");
+
+      const verified = await apiRequest<{ verified: boolean; email?: string; role?: string; is_superuser?: boolean }>(
+        "/auth/session/verify",
+      );
+      if (!verified?.verified) {
+        throw new ApiError("Star Africa Logistics could not verify this session.", 401);
       }
 
       const mappedUser = mapNeonUser(sessionData.user);
-
-      cacheAccessToken(jwtToken);
       cacheUser(mappedUser);
-      setToken(jwtToken);
+      setToken(sessionToken);
       setUser(mappedUser);
+      setAuthState("verified");
     } catch {
+      try {
+        if (isNeonAuthConfigured) await getNeonAuthClient().signOut();
+      } catch {
+        // A failed sign-out must not preserve an unverified local session.
+      }
       clearSession();
+      setAuthState("auth_failed");
     } finally {
+      clearAuthCallbackVerifier();
       setIsLoading(false);
     }
   }, [clearSession]);
@@ -161,8 +183,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const handleExpiredSession = () => {
-      clearSession();
-      setIsLoading(false);
+      void (async () => {
+        try {
+          if (isNeonAuthConfigured) await getNeonAuthClient().signOut();
+        } catch {
+          // Local state must still be cleared if remote sign-out is unavailable.
+        } finally {
+          clearSession();
+          setAuthState("auth_failed");
+          setIsLoading(false);
+        }
+      })();
     };
 
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleExpiredSession);
@@ -176,6 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setIsLoading(true);
+    setAuthState("authenticating");
     try {
       const result = await getNeonAuthClient().signIn.email({ email, password });
 
@@ -313,7 +345,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isLoading,
-        isAuthenticated: !!user && !!token,
+        isAuthenticated: authState === "verified" && !!user && !!token,
+        authState,
         isAdmin,
         isPlatformAdmin,
         authConfigured: isNeonAuthConfigured,

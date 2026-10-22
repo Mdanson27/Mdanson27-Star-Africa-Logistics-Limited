@@ -7737,6 +7737,28 @@
         "summary": "Revoke bearer token"
       }
     },
+    "/api/v1/auth/session/verify": {
+      "get": {
+        "deprecated": false,
+        "description": "Validates the caller before the frontend is allowed to mount protected application screens.",
+        "operationId": "ApiV1AuthSessionVerifyVerifySession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Verify active Star Africa session"
+      }
+    },
     "/api/v1/auth/token": {
       "post": {
         "deprecated": false,

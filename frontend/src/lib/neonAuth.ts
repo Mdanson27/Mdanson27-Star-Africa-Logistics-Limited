@@ -39,3 +39,10 @@ export function getAuthCallbackUrl(): string {
   callbackUrl.hash = "";
   return callbackUrl.toString();
 }
+
+export function clearAuthCallbackVerifier(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("neon_auth_session_verifier")) return;
+  url.searchParams.delete("neon_auth_session_verifier");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
