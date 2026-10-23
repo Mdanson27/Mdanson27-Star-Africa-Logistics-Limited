@@ -513,7 +513,8 @@ export const BusinessPage: React.FC = () => {
       if (!generated.document_id) throw new Error("The statement could not be saved to the document archive.");
       const viewed = await businessApi.viewBusinessDocument(generated.document_id);
       if (!viewed.download_url) throw new Error("The saved statement PDF is unavailable.");
-      setPreview({ url: viewed.download_url, title, filename: generated.filename });
+      const previewUrl = await businessApi.resolveDocumentUrl(viewed.download_url);
+      setPreview({ url: previewUrl, title, filename: generated.filename });
       await load(false);
     } catch (error) {
       showErrorToast(getErrorMessage(error, "The statement preview could not be opened."));

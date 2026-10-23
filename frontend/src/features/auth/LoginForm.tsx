@@ -61,12 +61,16 @@ export const LoginForm: React.FC = () => {
 
   const verificationMessage =
     authState === "booting" || authState === "verifying_neon"
-      ? "Checking your secure Star Africa Logistics session?"
+      ? "Checking your secure Star Africa Logistics session…"
       : authState === "verifying_api"
-        ? "Verifying access with the Star Africa Logistics server?"
-        : authState === "authenticating"
-          ? "Signing you in securely?"
-          : null;
+        ? "Verifying access with the Star Africa Logistics server…"
+        : authState === "reconnecting"
+          ? "Your session is still active. Reconnecting to the Star Africa Logistics server…"
+          : authState === "authenticating"
+            ? "Signing you in securely…"
+            : null;
+
+  const verificationLocked = verificationMessage !== null;
 
   const emailHelper = useMemo(() => {
     if (activeField !== "email") return "Use the email linked to your Star Africa Logistics workspace.";
@@ -367,7 +371,7 @@ export const LoginForm: React.FC = () => {
           type="submit"
           variant="primary"
           className="mt-1 h-11 w-full rounded-xl star-africa-primary-action font-semibold transition hover:-translate-y-0.5"
-          loading={isLoading || authBusy}
+          loading={isLoading || authBusy || verificationLocked}
         >
           Sign in
         </Button>
@@ -385,7 +389,7 @@ export const LoginForm: React.FC = () => {
         type="button"
         variant="outline"
         onClick={handleGoogleSignIn}
-        disabled={!authConfigured || authBusy || isLoading}
+        disabled={!authConfigured || authBusy || isLoading || verificationLocked}
         className="h-10 w-full gap-3 rounded-xl border-[#d8e0ea] bg-white text-[#17324a] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#f8fafc] hover:shadow-md sm:h-11 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:hover:bg-white/[0.08]"
       >
         <GoogleMark />

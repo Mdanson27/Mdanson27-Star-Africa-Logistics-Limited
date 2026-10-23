@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.storage import (
+    local_storage_ready,
     object_exists_async,
     presign_download,
     put_object_bytes_async,
@@ -267,6 +268,12 @@ async def invalidate_current_generated_document(
     return current
 
 
+def document_download_url(document: Document, *, expires: int = 900) -> str:
+    if document.storage_key.startswith("documents/local/"):
+        return f"/api/v1/documents/{document.id}/content"
+    return presign_download(document.storage_key, expires=expires)
+
+
 async def upsert_generated_document(
     db_session: AsyncSession,
     *,
@@ -281,7 +288,8 @@ async def upsert_generated_document(
     supplier_id: uuid.UUID | None = None,
     force_new_version: bool = False,
 ) -> tuple[Document | None, str | None]:
-    if not storage_configured():
+    use_primary_storage = storage_configured()
+    if not use_primary_storage and not local_storage_ready():
         return None, None
 
     actor = uploaded_by_email.strip().lower()
@@ -295,10 +303,19 @@ async def upsert_generated_document(
         current.title = title
         current.original_filename = filename
         current.uploaded_by_email = actor
-        if not await object_exists_async(current.storage_key):
+
+        if not use_primary_storage and not current.storage_key.startswith("documents/local/"):
+            safe_filename = filename.replace("/", "-").replace("\\", "-")
+            current.storage_key = (
+                f"documents/local/generated/{related_record_type}/{related_record_id}/"
+                f"v{current.version}/{safe_filename}"
+            )
             await put_object_bytes_async(current.storage_key, pdf_bytes, "application/pdf")
+        elif not await object_exists_async(current.storage_key):
+            await put_object_bytes_async(current.storage_key, pdf_bytes, "application/pdf")
+
         await db_session.flush()
-        return current, presign_download(current.storage_key)
+        return current, document_download_url(current)
 
     next_version = (
         await latest_generated_version(db_session, related_record_type, related_record_id) + 1
@@ -307,9 +324,9 @@ async def upsert_generated_document(
         current.is_current = False
 
     safe_filename = filename.replace("/", "-").replace("\\", "-")
+    storage_root = "documents/generated" if use_primary_storage else "documents/local/generated"
     storage_key = (
-        f"documents/generated/{related_record_type}/{related_record_id}/"
-        f"v{next_version}/{safe_filename}"
+        f"{storage_root}/{related_record_type}/{related_record_id}/v{next_version}/{safe_filename}"
     )
     await put_object_bytes_async(storage_key, pdf_bytes, "application/pdf")
 
@@ -349,4 +366,4 @@ async def upsert_generated_document(
             "supersedes_document_id": str(current.id) if current else None,
         },
     )
-    return document, presign_download(storage_key)
+    return document, document_download_url(document)

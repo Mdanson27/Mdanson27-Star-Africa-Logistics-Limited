@@ -112,14 +112,21 @@ export const BusinessDocumentsArchive: React.FC<Props> = ({
         action === "print" ? await businessApi.printBusinessDocument(item.id) :
         await businessApi.shareBusinessDocument(item.id);
       if (!result.download_url) throw new Error("The saved PDF is not available from document storage.");
-      if (action === "view") {
-        onPreview(result.download_url, `${item.title} · V${item.version}`, item.filename);
-      } else if (action === "share") {
+      if (action === "share") {
+        if (!/^https?:\/\//i.test(result.download_url)) {
+          throw new Error("Public share links require Neon Object Storage. The document is safely stored locally and remains available for preview, download and print.");
+        }
         await navigator.clipboard.writeText(result.download_url);
         showSuccessToast("Share link copied. It expires automatically.");
       } else {
-        window.open(result.download_url, "_blank", "noopener,noreferrer");
-        if (action === "print") showSuccessToast("The saved PDF opened for printing.");
+        const resolvedUrl = await businessApi.resolveDocumentUrl(result.download_url);
+        if (action === "view") {
+          onPreview(resolvedUrl, `${item.title} · V${item.version}`, item.filename);
+        } else {
+          window.open(resolvedUrl, "_blank", "noopener,noreferrer");
+          if (resolvedUrl.startsWith("blob:")) window.setTimeout(() => URL.revokeObjectURL(resolvedUrl), 60_000);
+          if (action === "print") showSuccessToast("The saved PDF opened for printing.");
+        }
       }
     } catch (error) {
       showErrorToast(getErrorMessage(error, `The document could not be ${action === "view" ? "opened" : action + "ed"}.`));
@@ -147,7 +154,8 @@ export const BusinessDocumentsArchive: React.FC<Props> = ({
       showSuccessToast(result.message || "A new document version was generated.");
       await onReload();
       if (result.download_url) {
-        onPreview(result.download_url, `${result.document.title} · V${result.document.version}`, result.document.filename);
+        const resolvedUrl = await businessApi.resolveDocumentUrl(result.download_url);
+        onPreview(resolvedUrl, `${result.document.title} · V${result.document.version}`, result.document.filename);
       }
     } catch (error) {
       showErrorToast(getErrorMessage(error, "A new document version could not be generated."));

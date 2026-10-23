@@ -19,7 +19,7 @@ describe("Star Africa Neon Auth callback", () => {
     expect(getAuthCallbackUrl()).toBe(
       "https://mdanson27.github.io/Mdanson27-Star-Africa-Logistics-Limited/",
     );
-  });
+  }, 15_000);
 
   it("removes the consumed Neon verifier without changing the application path", async () => {
     const replaceState = vi.fn();

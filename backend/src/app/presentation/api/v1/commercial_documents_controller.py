@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.mail import EmailAttachment, EmailMessage, mail_service
 from app.core.settings import settings
-from app.core.storage import delete_object, get_object_bytes, object_exists_async, presign_download
+from app.core.storage import delete_object, get_object_bytes, object_exists_async
 from app.domain.business.document_service import (
     client_statement_pdf,
     ensure_invoice_document,
@@ -49,6 +49,7 @@ from app.domain.business.schemas import (
 )
 from app.domain.business.services import (
     current_generated_document,
+    document_download_url,
     line_items_read,
     load_line_items,
     next_business_number,
@@ -457,7 +458,7 @@ class CommercialDocumentsController(Controller):
             document_id=doc.id,
             document_number=number,
             filename=filename,
-            download_url=presign_download(doc.storage_key),
+            download_url=document_download_url(doc),
             stored=True,
         )
 
@@ -669,7 +670,7 @@ class CommercialDocumentsController(Controller):
         await db_session.commit()
         return BusinessDocumentActionResponse(
             document=_archive_item(item),
-            download_url=presign_download(item.storage_key, expires=expires),
+            download_url=document_download_url(item, expires=expires),
             message=f"Document {action} recorded.",
         )
 
