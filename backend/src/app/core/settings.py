@@ -32,6 +32,7 @@ class AppSettings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-2"
     DOCUMENTS_BUCKET: str = "star-africa-logistics-documents"
+    DOCUMENTS_LOCAL_DIR: str = "/app/data/documents"
 
     # ── Token TTLs ────────────────────────────────────────────────────────────
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

@@ -118,9 +118,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, isOpe
 
         {isPlatformAdmin && (
           <div className="pt-4 mt-4 border-t border-sidebar-border">
-            <a href="/docs" target="_blank" rel="noreferrer"
+            <a href={`${import.meta.env.BASE_URL}openapi.html`} target="_blank" rel="noreferrer"
               className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent", !isOpen && "justify-center px-0")}>
-              <FileCode2 className="h-4 w-4" />{isOpen && <span>OpenAPI Docs</span>}
+              <FileCode2 className="h-4 w-4" />{isOpen && <span>API Reference</span>}
             </a>
           </div>
         )}

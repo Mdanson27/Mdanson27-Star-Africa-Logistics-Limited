@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Camera, Download, FileText, ScanLine, Search, UploadCloud } from "lucide-react";
+import { AlertTriangle, Download, Eye, FileText, RefreshCw, ScanLine, Search, UploadCloud, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SyncStatus } from "@/components/common/SyncStatus";
@@ -9,382 +9,44 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackgroundRefresh } from "@/hooks/useBackgroundRefresh";
 import { readSectionCache, writeSectionCache } from "@/lib/sectionCache";
 import { getErrorMessage } from "@/lib/api";
-import {
-  workspaceApi,
-  uploadToPresignedUrl,
-  type DocumentRecord,
-  type Project,
-} from "@/lib/workspaceApi";
+import { workspaceApi, uploadToPresignedUrl, type DocumentRecord, type Project } from "@/lib/workspaceApi";
 
-const categories = [
-  "contract",
-  "proposal",
-  "invoice",
-  "receipt",
-  "purchase_order",
-  "delivery_note",
-  "technical",
-  "other",
-];
+const categories=["contract","proposal","invoice","receipt","purchase_order","delivery_note","technical","other"];
+const nice=(v:string)=>v.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+const extractFields=(text:string)=>{const r:Record<string,string>={};const n=text.match(/(?:invoice|receipt|po|purchase order)\s*(?:no\.?|#|number)?\s*[:#-]?\s*([A-Z0-9-]{3,})/i);const a=text.match(/(?:total|amount due|grand total)\s*[:\-]?\s*(?:UGX|USh|Shs)?\s*([0-9,.]+)/i);const d=text.match(/\b(?:0?[1-9]|[12][0-9]|3[01])[\/\-.](?:0?[1-9]|1[0-2])[\/\-.](?:20)?[0-9]{2}\b/);if(n)r.document_number=n[1];if(a)r.amount=a[1].replaceAll(",","");if(d)r.date=d[0];return r;};
+type View="overview"|"all"|"ocr_inbox"|"needs_review"|"unclassified"|"project_documents"|"business_documents";
+type Snapshot={documents:DocumentRecord[];projects:Project[]};
 
-function extractFields(text: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  const invoice = text.match(
-    /(?:invoice|receipt|po|purchase order)\s*(?:no\.?|#|number)?\s*[:#-]?\s*([A-Z0-9-]{3,})/i,
-  );
-  const amount = text.match(
-    /(?:total|amount due|grand total)\s*[:\-]?\s*(?:UGX|USh|Shs)?\s*([0-9,\.]+)/i,
-  );
-  const dateMatch = text.match(
-    /\b(?:0?[1-9]|[12][0-9]|3[01])[\/\-.](?:0?[1-9]|1[0-2])[\/\-.](?:20)?[0-9]{2}\b/,
-  );
-  if (invoice) result.document_number = invoice[1];
-  if (amount) result.amount = amount[1].replaceAll(",", "");
-  if (dateMatch) result.date = dateMatch[0];
-  return result;
-}
+export const DocumentsPage:React.FC=()=>{
+ const {showSuccessToast,showErrorToast}=useCustomToast(); const {user}=useAuth();
+ const [initial]=useState(()=>readSectionCache<Snapshot>(user?.id,"documents"));
+ const [documents,setDocuments]=useState<DocumentRecord[]>(initial?.data.documents??[]),[projects,setProjects]=useState<Project[]>(initial?.data.projects??[]),[view,setView]=useState<View>("overview"),[query,setQuery]=useState(""),[projectId,setProjectId]=useState(""),[category,setCategory]=useState("other");
+ const [busy,setBusy]=useState(false),[progress,setProgress]=useState(""),[refreshing,setRefreshing]=useState(false),[lastSynced,setLastSynced]=useState<string|null>(initial?.savedAt??null),[loadError,setLoadError]=useState<string|null>(null),[storageReady,setStorageReady]=useState<boolean|null>(null);
+ const [review,setReview]=useState<DocumentRecord|null>(null),[previewUrl,setPreviewUrl]=useState(""),[ocrText,setOcrText]=useState(""),[fields,setFields]=useState<Record<string,string>>({}),[ocrBusy,setOcrBusy]=useState(false);
+ const fileInput=useRef<HTMLInputElement>(null),cameraInput=useRef<HTMLInputElement>(null);
+ const load=useCallback(async()=>{setRefreshing(true);setLoadError(null);try{const [docs,ps,storage]=await Promise.all([workspaceApi.documents(),workspaceApi.projects(),workspaceApi.documentStorageStatus()]);setDocuments(docs);setProjects(ps);setStorageReady(storage.configured);setLastSynced(writeSectionCache(user?.id,"documents",{documents:docs,projects:ps}));}catch(e){setLoadError(getErrorMessage(e,"Documents could not be refreshed."));}finally{setRefreshing(false)}},[user?.id]);
+ useBackgroundRefresh(load);
+ const filtered=useMemo(()=>{const q=query.toLowerCase().trim();return documents.filter(d=>{if(q&&![d.title,d.original_filename,d.category,d.ocr_text||""].some(x=>x.toLowerCase().includes(q)))return false;if(view==="all"||view==="overview")return true;if(view==="ocr_inbox")return d.ocr_status==="processing";if(view==="needs_review")return d.ocr_status==="completed"&&d.review_status!=="reviewed";if(view==="unclassified")return d.category==="other";if(view==="project_documents")return !!d.project_id;if(view==="business_documents")return !d.project_id;return true;});},[documents,query,view]);
+ const displayed=view==="overview"&&!query.trim()?[...filtered].sort((a,b)=>+new Date(b.updated_at)-+new Date(a.updated_at)).slice(0,6):filtered;
+ const views=[{id:"overview" as const,label:"Overview"},{id:"all" as const,label:"All Documents",count:documents.length},{id:"ocr_inbox" as const,label:"OCR Queue",count:documents.filter(d=>d.ocr_status==="processing").length},{id:"needs_review" as const,label:"Needs Review",count:documents.filter(d=>d.ocr_status==="completed"&&d.review_status!=="reviewed").length},{id:"unclassified" as const,label:"Unclassified",count:documents.filter(d=>d.category==="other").length},{id:"project_documents" as const,label:"Project Documents",count:documents.filter(d=>!!d.project_id).length},{id:"business_documents" as const,label:"Business Documents",count:documents.filter(d=>!d.project_id).length}];
 
-const niceCategory = (value: string) =>
-  value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+ const recognizeImage=async(source:Blob|HTMLCanvasElement)=>{const url="https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/tesseract.esm.min.js";const {recognize}=await import(/* @vite-ignore */url);const result=await recognize(source,"eng",{logger:(m:{progress?:number})=>{if(typeof m.progress==="number")setProgress(`OCR scanning… ${Math.round(m.progress*100)}%`)}});return result.data.text.trim();};
+ const recognizeBlob=async(blob:Blob,contentType:string)=>{if(contentType.startsWith("image/"))return recognizeImage(blob);if(contentType==="application/pdf"){const pdfUrl="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";const pdfjs=await import(/* @vite-ignore */pdfUrl);pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";const pdf=await pdfjs.getDocument({data:await blob.arrayBuffer()}).promise;const pages:string[]=[];for(let i=1;i<=Math.min(pdf.numPages,10);i++){setProgress(`Preparing PDF page ${i}/${Math.min(pdf.numPages,10)}…`);const page=await pdf.getPage(i);const viewport=page.getViewport({scale:1.6});const canvas=document.createElement("canvas");canvas.width=viewport.width;canvas.height=viewport.height;const ctx=canvas.getContext("2d");if(!ctx)continue;await page.render({canvasContext:ctx,viewport}).promise;pages.push(await recognizeImage(canvas));}return pages.join("\n\n");}throw new Error("OCR currently supports image files and PDFs.");};
+ const processFile=async(file:File,scan:boolean)=>{if(busy)return;if(storageReady===false){showErrorToast("Neon Object Storage is not connected to this running API. Ask the platform administrator to restore the storage credential before uploading.","Storage unavailable");return;}setBusy(true);setProgress(scan?"Reading document…":"Preparing secure upload…");try{let text="",status="not_requested",extracted:Record<string,string>={};if(scan){status="processing";text=await recognizeBlob(file,file.type);extracted=extractFields(text);status="completed";}const signed=await workspaceApi.createUploadUrl({filename:file.name,content_type:file.type||"application/octet-stream",project_id:projectId||null});setProgress("Uploading securely…");await uploadToPresignedUrl(signed.upload_url,file);setProgress("Saving document record…");const saved=await workspaceApi.createDocument({title:file.name.replace(/\.[^.]+$/, ""),original_filename:file.name,category,content_type:file.type||"application/octet-stream",size_bytes:file.size,storage_key:signed.storage_key,project_id:projectId||null,ocr_status:status,ocr_text:text||null,extracted_fields:extracted,review_status:text?"not_reviewed":"not_reviewed"});await load();showSuccessToast(`${file.name} was saved successfully.`,"Upload complete");if(text)await openReview(saved);setProgress("");}catch(e){setProgress("");showErrorToast(getErrorMessage(e,"The document could not be saved. If storage is unavailable, reconnect Neon Object Storage and retry."),"Document not saved");}finally{setBusy(false)}};
+ const openReview=async(d:DocumentRecord)=>{setReview(d);setOcrText(d.ocr_text||"");setFields(Object.fromEntries(Object.entries(d.extracted_fields||{}).map(([k,v])=>[k,String(v??"")])));setPreviewUrl("");try{const {url}=await workspaceApi.downloadDocument(d.id);setPreviewUrl(url);}catch(e){showErrorToast(getErrorMessage(e,"Original file preview could not be loaded."),"Preview unavailable")}};
+ const runOcr=async()=>{if(!review||!previewUrl)return;setOcrBusy(true);setProgress("Downloading original for OCR…");try{const response=await fetch(previewUrl);if(!response.ok)throw new Error("Original file could not be downloaded for OCR.");const text=await recognizeBlob(await response.blob(),review.content_type);setOcrText(text);setFields(extractFields(text));showSuccessToast("OCR finished. Review the text before saving.","OCR complete");}catch(e){showErrorToast(getErrorMessage(e,"OCR could not process this file."),"OCR failed");}finally{setOcrBusy(false);setProgress("")}};
+ const saveReview=async()=>{if(!review)return;setOcrBusy(true);try{const saved=await workspaceApi.updateDocument(review.id,{ocr_status:"completed",ocr_text:ocrText,extracted_fields:fields,review_status:"reviewed"});setReview(saved);await load();showSuccessToast("OCR text and extracted fields were reviewed and saved.","Review saved");}catch(e){showErrorToast(getErrorMessage(e,"OCR review could not be saved."),"Save failed");}finally{setOcrBusy(false)}};
+ const download=async(d:DocumentRecord)=>{try{const {url}=await workspaceApi.downloadDocument(d.id);window.open(url,"_blank","noopener,noreferrer");}catch(e){showErrorToast(getErrorMessage(e,"The document could not be opened."),"Open failed")}};
 
-type DocumentsView =
-  | "overview"
-  | "all"
-  | "ocr_inbox"
-  | "needs_review"
-  | "unclassified"
-  | "project_documents"
-  | "business_documents"
-  | "archived";
-
-type DocumentsSnapshot = { documents: DocumentRecord[]; projects: Project[] };
-
-export const DocumentsPage: React.FC = () => {
-  const { showSuccessToast, showErrorToast } = useCustomToast();
-  const { user } = useAuth();
-  const [initialCache] = useState(() => readSectionCache<DocumentsSnapshot>(user?.id, "documents"));
-  const [documents, setDocuments] = useState<DocumentRecord[]>(initialCache?.data.documents ?? []);
-  const [projects, setProjects] = useState<Project[]>(initialCache?.data.projects ?? []);
-  const [view, setView] = useState<DocumentsView>("overview");
-  const [query, setQuery] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [category, setCategory] = useState("other");
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(initialCache?.savedAt ?? null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const cameraInput = useRef<HTMLInputElement>(null);
-
-  const load = useCallback(async (_showLoading = true) => {
-    setIsRefreshing(true);
-    setLoadError(null);
-    try {
-      const [docs, nextProjects] = await Promise.all([
-        workspaceApi.documents(),
-        workspaceApi.projects(),
-      ]);
-      const snapshot: DocumentsSnapshot = { documents: docs, projects: nextProjects };
-      setDocuments(snapshot.documents);
-      setProjects(snapshot.projects);
-      setLastSyncedAt(writeSectionCache(user?.id, "documents", snapshot));
-    } catch (error) {
-      setLoadError(getErrorMessage(error, "Documents could not be refreshed."));
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [user?.id]);
-
-  useBackgroundRefresh(load);
-
-  const filtered = useMemo(() => {
-    const normalized = query.toLowerCase().trim();
-    return documents.filter((document) => {
-      const matchesSearch =
-        !normalized ||
-        [
-          document.title,
-          document.original_filename,
-          document.category,
-          document.ocr_text || "",
-        ].some((value) => value.toLowerCase().includes(normalized));
-
-      if (!matchesSearch) return false;
-      if (view === "all" || view === "overview") return true;
-      if (view === "ocr_inbox") return document.ocr_status === "processing";
-      if (view === "needs_review") {
-        return document.ocr_status === "completed" && Object.keys(document.extracted_fields || {}).length > 0;
-      }
-      if (view === "unclassified") return document.category === "other";
-      if (view === "project_documents") return Boolean(document.project_id);
-      if (view === "business_documents") return !document.project_id;
-      if (view === "archived") return false;
-      return true;
-    });
-  }, [documents, query, view]);
-
-  const displayedDocuments = useMemo(() => {
-    if (view !== "overview" || query.trim()) return filtered;
-    return [...filtered]
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      .slice(0, 5);
-  }, [filtered, query, view]);
-
-  const documentViews = [
-    { id: "overview" as const, label: "Overview" },
-    { id: "all" as const, label: "All Documents", count: documents.length },
-    { id: "ocr_inbox" as const, label: "OCR Inbox", count: documents.filter((document) => document.ocr_status === "processing").length },
-    { id: "needs_review" as const, label: "Needs Review", count: documents.filter((document) => document.ocr_status === "completed" && Object.keys(document.extracted_fields || {}).length > 0).length },
-    { id: "unclassified" as const, label: "Unclassified", count: documents.filter((document) => document.category === "other").length },
-    { id: "project_documents" as const, label: "Project Documents", count: documents.filter((document) => Boolean(document.project_id)).length },
-    { id: "business_documents" as const, label: "Business Documents", count: documents.filter((document) => !document.project_id).length },
-    { id: "archived" as const, label: "Archived", count: 0 },
-  ];
-
-  const processFile = async (file: File, scan: boolean) => {
-    if (busy) return;
-
-    setBusy(true);
-    setProgress(scan ? "Reading document..." : "Preparing upload...");
-
-    try {
-      let ocrText = "";
-      let ocrStatus = "not_requested";
-      let extractedFields: Record<string, string> = {};
-
-      if (scan && file.type.startsWith("image/")) {
-        ocrStatus = "processing";
-        const tesseractUrl =
-          "https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/tesseract.esm.min.js";
-        const { recognize } = await import(/* @vite-ignore */ tesseractUrl);
-        const result = await recognize(file, "eng", {
-          logger: (message: { progress?: number }) => {
-            if (typeof message.progress === "number") {
-              setProgress(`Reading document... ${Math.round(message.progress * 100)}%`);
-            }
-          },
-        });
-        ocrText = result.data.text.trim();
-        extractedFields = extractFields(ocrText);
-        ocrStatus = "completed";
-      }
-
-      setProgress("Uploading securely...");
-      const signed = await workspaceApi.createUploadUrl({
-        filename: file.name,
-        content_type: file.type || "application/octet-stream",
-        project_id: projectId || null,
-      });
-      await uploadToPresignedUrl(signed.upload_url, file);
-
-      setProgress("Saving document...");
-      await workspaceApi.createDocument({
-        title: file.name.replace(/\.[^.]+$/, ""),
-        original_filename: file.name,
-        category,
-        content_type: file.type || "application/octet-stream",
-        size_bytes: file.size,
-        storage_key: signed.storage_key,
-        project_id: projectId || null,
-        ocr_status: ocrStatus,
-        ocr_text: ocrText || null,
-        extracted_fields: extractedFields,
-      });
-
-      await load(false);
-      setProgress("Saved");
-      showSuccessToast(`${file.name} was saved to Documents.`, "Document saved");
-      window.setTimeout(() => setProgress(""), 1200);
-    } catch (error) {
-      setProgress("");
-      showErrorToast(
-        getErrorMessage(error, "The document could not be saved."),
-        "Document not saved",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const download = async (document: DocumentRecord) => {
-    try {
-      const { url } = await workspaceApi.downloadDocument(document.id);
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      showErrorToast(
-        getErrorMessage(error, "The document could not be opened."),
-        "Open failed",
-      );
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Documents</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload, scan, search and keep every business document in one place.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SyncStatus isRefreshing={isRefreshing} error={loadError} lastSyncedAt={lastSyncedAt} />
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => fileInput.current?.click()}
-            disabled={busy}
-          >
-            <UploadCloud className="h-4 w-4" /> Upload file
-          </Button>
-          <Button
-            className="gap-2"
-            onClick={() => cameraInput.current?.click()}
-            disabled={busy}
-          >
-            <ScanLine className="h-4 w-4" /> Scan document
-          </Button>
-        </div>
-      </div>
-
-      <SectionNav
-        items={documentViews}
-        active={view}
-        onChange={setView}
-        ariaLabel="Document sections"
-      />
-
-      {view === "overview" && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card><p className="text-xs text-muted-foreground">Total documents</p><p className="mt-2 text-2xl font-bold">{documents.length}</p></Card>
-          <Card><p className="text-xs text-muted-foreground">OCR inbox</p><p className="mt-2 text-2xl font-bold">{documentViews.find((item) => item.id === "ocr_inbox")?.count ?? 0}</p></Card>
-          <Card><p className="text-xs text-muted-foreground">Needs review</p><p className="mt-2 text-2xl font-bold">{documentViews.find((item) => item.id === "needs_review")?.count ?? 0}</p></Card>
-          <Card><p className="text-xs text-muted-foreground">Unclassified</p><p className="mt-2 text-2xl font-bold">{documentViews.find((item) => item.id === "unclassified")?.count ?? 0}</p></Card>
-        </div>
-      )}
-
-      <input
-        ref={fileInput}
-        type="file"
-        className="hidden"
-        accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void processFile(file, false);
-          event.currentTarget.value = "";
-        }}
-      />
-      <input
-        ref={cameraInput}
-        type="file"
-        className="hidden"
-        accept="image/*"
-        capture="environment"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void processFile(file, true);
-          event.currentTarget.value = "";
-        }}
-      />
-
-      <Card>
-        <div className="grid gap-3 md:grid-cols-[1fr_220px_190px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search names, OCR text, invoice numbers..."
-              className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
-            />
-          </div>
-          <select
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            className="h-10 rounded-lg border border-border bg-background px-3 text-sm"
-          >
-            <option value="">General documents</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            className="h-10 rounded-lg border border-border bg-background px-3 text-sm"
-          >
-            {categories.map((item) => (
-              <option key={item} value={item}>
-                {niceCategory(item)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {progress && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
-            <Camera className="h-4 w-4" /> {progress}
-          </div>
-        )}
-      </Card>
-
-      {displayedDocuments.length === 0 ? (
-        <Card className="py-14 text-center">
-          <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 font-medium">
-            {view === "archived" ? "No archived documents" : "No documents in this section"}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {view === "archived"
-              ? "The archive area is now separated and ready for the Documents 2.0 archiving workflow."
-              : "Upload a file, scan a document, or choose another document section."}
-          </p>
-        </Card>
-      ) : (
-        <div className="grid gap-3">
-          {displayedDocuments.map((document) => {
-            const project = projects.find((item) => item.id === document.project_id);
-            return (
-              <Card
-                key={document.id}
-                className="flex flex-wrap items-center justify-between gap-4 p-4"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{document.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {niceCategory(document.category)}{" "}
-                      {project ? `- ${project.name}` : "- General"} -{" "}
-                      {Math.max(1, Math.round(document.size_bytes / 1024))} KB
-                    </p>
-                    {document.ocr_status === "completed" && (
-                      <p className="mt-1 text-[10px] text-emerald-500">
-                        OCR indexed and searchable
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => void download(document)}
-                >
-                  <Download className="h-3.5 w-3.5" /> Open
-                </Button>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+ return <div className="space-y-6">
+  <div className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-2xl font-bold">Documents</h1><p className="mt-1 text-sm text-muted-foreground">Secure document storage, OCR extraction and review in one auditable workspace.</p></div><div className="flex flex-wrap items-center gap-2"><SyncStatus isRefreshing={refreshing} error={loadError} lastSyncedAt={lastSynced}/><Button variant="outline" className="gap-2" disabled={busy||storageReady===false} onClick={()=>fileInput.current?.click()}><UploadCloud className="h-4 w-4"/>Upload file</Button><Button className="gap-2" disabled={busy||storageReady===false} onClick={()=>cameraInput.current?.click()}><ScanLine className="h-4 w-4"/>Scan & OCR</Button></div></div>
+  {storageReady===false&&<div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"/><div><p className="font-semibold">Document storage is offline</p><p className="mt-1 text-muted-foreground">Uploads are disabled before file selection so nothing is lost halfway through. The running API needs its Neon Object Storage credential restored.</p></div></div>}
+  <SectionNav items={views} active={view} onChange={setView} ariaLabel="Document sections"/>
+  {view==="overview"&&<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Card><p className="text-xs text-muted-foreground">Total documents</p><p className="mt-2 text-2xl font-bold">{documents.length}</p></Card><Card><p className="text-xs text-muted-foreground">OCR processed</p><p className="mt-2 text-2xl font-bold">{documents.filter(d=>d.ocr_status==="completed").length}</p></Card><Card><p className="text-xs text-muted-foreground">Awaiting review</p><p className="mt-2 text-2xl font-bold">{documents.filter(d=>d.ocr_status==="completed"&&d.review_status!=="reviewed").length}</p></Card><Card><p className="text-xs text-muted-foreground">Project-linked</p><p className="mt-2 text-2xl font-bold">{documents.filter(d=>!!d.project_id).length}</p></Card></div>}
+  <input ref={fileInput} type="file" className="hidden" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" onChange={e=>{const f=e.target.files?.[0];if(f)void processFile(f,false);e.currentTarget.value=""}}/><input ref={cameraInput} type="file" className="hidden" accept="image/*,.pdf" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)void processFile(f,true);e.currentTarget.value=""}}/>
+  <Card><div className="grid gap-3 md:grid-cols-[1fr_220px_190px]"><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search names, OCR text, invoice numbers…" className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/></div><select value={projectId} onChange={e=>setProjectId(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm"><option value="">General documents</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><select value={category} onChange={e=>setCategory(e.target.value)} className="h-10 rounded-lg border border-border bg-background px-3 text-sm">{categories.map(c=><option key={c} value={c}>{nice(c)}</option>)}</select></div>{progress&&<div className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary"><RefreshCw className="h-4 w-4 animate-spin"/>{progress}</div>}</Card>
+  {!displayed.length?<Card className="py-14 text-center"><FileText className="mx-auto h-10 w-10 text-muted-foreground"/><p className="mt-3 font-medium">No documents in this section</p><p className="mt-1 text-sm text-muted-foreground">Upload a file, scan a document, or choose another section.</p></Card>:<div className="grid gap-3">{displayed.map(d=>{const p=projects.find(x=>x.id===d.project_id);return <Card key={d.id} className="flex flex-wrap items-center justify-between gap-4 p-4"><div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><FileText className="h-5 w-5"/></div><div className="min-w-0"><p className="truncate text-sm font-semibold">{d.title}</p><p className="truncate text-xs text-muted-foreground">{nice(d.category)} · {p?.name||"General"} · {Math.max(1,Math.round(d.size_bytes/1024))} KB</p><p className={`mt-1 text-[10px] ${d.ocr_status==="completed"?"text-emerald-500":"text-muted-foreground"}`}>{d.ocr_status==="completed"?(d.review_status==="reviewed"?"OCR reviewed":"OCR ready for review"):"OCR not yet processed"}</p></div></div><div className="flex gap-2"><Button size="sm" variant="outline" className="gap-2" onClick={()=>void openReview(d)}><Eye className="h-3.5 w-3.5"/>Review / OCR</Button><Button size="sm" variant="outline" className="gap-2" onClick={()=>void download(d)}><Download className="h-3.5 w-3.5"/>Open</Button></div></Card>})}</div>}
+  {review&&<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"><div className="flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"><div className="flex items-center justify-between border-b px-5 py-4"><div><h2 className="font-semibold">OCR Review · {review.title}</h2><p className="text-xs text-muted-foreground">Compare the source document with extracted text before saving.</p></div><button className="rounded-lg p-2 hover:bg-muted" onClick={()=>{setReview(null);setPreviewUrl("")}}><X className="h-5 w-5"/></button></div><div className="grid min-h-0 flex-1 lg:grid-cols-2"><section className="min-h-[420px] border-b lg:border-b-0 lg:border-r"><div className="flex items-center justify-between border-b px-4 py-3"><div><p className="text-sm font-semibold">Original document</p><p className="text-xs text-muted-foreground">{review.original_filename}</p></div><Button size="sm" variant="outline" onClick={()=>void download(review)}>Open original</Button></div><div className="h-[62vh] bg-muted/20 p-3">{previewUrl?(review.content_type.startsWith("image/")?<img src={previewUrl} alt={review.title} className="h-full w-full object-contain"/>:<iframe title="Document preview" src={previewUrl} className="h-full w-full rounded-lg bg-white"/>):<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading preview…</div>}</div></section><section className="min-h-0 overflow-y-auto p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">OCR extraction</p><p className="text-xs text-muted-foreground">Editable before approval.</p></div><Button size="sm" variant="outline" disabled={ocrBusy||!previewUrl} onClick={()=>void runOcr()}><ScanLine className="mr-2 h-4 w-4"/>{ocrBusy?"Scanning…":"Run OCR"}</Button></div><textarea value={ocrText} onChange={e=>setOcrText(e.target.value)} placeholder="OCR text will appear here…" className="mt-4 min-h-72 w-full rounded-xl border border-border bg-background p-3 text-sm leading-6 outline-none focus:border-primary"/><div className="mt-4"><div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold">Detected fields</p><Button size="sm" variant="outline" onClick={()=>setFields(extractFields(ocrText))}>Re-detect</Button></div>{Object.keys(fields).length?<div className="grid gap-2">{Object.entries(fields).map(([k,v])=><label key={k} className="grid gap-1 text-xs"><span className="font-medium">{nice(k)}</span><input value={v} onChange={e=>setFields({...fields,[k]:e.target.value})} className="h-9 rounded-lg border border-border bg-background px-3 text-sm"/></label>)}</div>:<p className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">No standard invoice/date/amount fields detected yet. OCR text can still be reviewed and saved.</p>}</div></section></div><div className="flex justify-end gap-2 border-t px-5 py-3"><Button variant="outline" onClick={()=>setReview(null)}>Close</Button><Button disabled={ocrBusy} onClick={()=>void saveReview()}>Save reviewed OCR</Button></div></div></div>}
+ </div>;
 };
-
 export default DocumentsPage;

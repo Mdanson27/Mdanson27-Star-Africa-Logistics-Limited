@@ -43,6 +43,8 @@ services:
       VALKEY_URL: redis://172.28.251.10:6379/0
     ports:
       - "127.0.0.1:8100:8000"
+    volumes:
+      - star_africa_documents:/app/data/documents
     networks:
       - star_africa_testing
     depends_on:
@@ -82,6 +84,7 @@ services:
 
 volumes:
   star_africa_testing_valkey:
+  star_africa_documents:
 
 
 networks:

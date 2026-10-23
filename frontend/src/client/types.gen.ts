@@ -4065,6 +4065,41 @@ export type ApiV1DocumentsCreateDocumentResponses = {
 
 export type ApiV1DocumentsCreateDocumentResponse = ApiV1DocumentsCreateDocumentResponses[keyof ApiV1DocumentsCreateDocumentResponses];
 
+export type ApiV1DocumentsLocalUploadTokenUploadLocalDocumentData = {
+    body?: never;
+    path: {
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/documents/local-upload/{token}';
+};
+
+export type ApiV1DocumentsLocalUploadTokenUploadLocalDocumentErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1DocumentsLocalUploadTokenUploadLocalDocumentError = ApiV1DocumentsLocalUploadTokenUploadLocalDocumentErrors[keyof ApiV1DocumentsLocalUploadTokenUploadLocalDocumentErrors];
+
+export type ApiV1DocumentsLocalUploadTokenUploadLocalDocumentResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApiV1DocumentsLocalUploadTokenUploadLocalDocumentResponse = ApiV1DocumentsLocalUploadTokenUploadLocalDocumentResponses[keyof ApiV1DocumentsLocalUploadTokenUploadLocalDocumentResponses];
+
 export type ApiV1DocumentsPresignCreateUploadUrlData = {
     body: DocumentPresignRequest;
     path?: never;
@@ -4095,6 +4130,24 @@ export type ApiV1DocumentsPresignCreateUploadUrlResponses = {
 };
 
 export type ApiV1DocumentsPresignCreateUploadUrlResponse = ApiV1DocumentsPresignCreateUploadUrlResponses[keyof ApiV1DocumentsPresignCreateUploadUrlResponses];
+
+export type ApiV1DocumentsStorageStatusDocumentStorageStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/documents/storage-status';
+};
+
+export type ApiV1DocumentsStorageStatusDocumentStorageStatusResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApiV1DocumentsStorageStatusDocumentStorageStatusResponse = ApiV1DocumentsStorageStatusDocumentStorageStatusResponses[keyof ApiV1DocumentsStorageStatusDocumentStorageStatusResponses];
 
 export type ApiV1DocumentsDocumentIdDeleteDocumentData = {
     body?: never;
@@ -4163,6 +4216,39 @@ export type ApiV1DocumentsDocumentIdUpdateDocumentResponses = {
 };
 
 export type ApiV1DocumentsDocumentIdUpdateDocumentResponse = ApiV1DocumentsDocumentIdUpdateDocumentResponses[keyof ApiV1DocumentsDocumentIdUpdateDocumentResponses];
+
+export type ApiV1DocumentsDocumentIdContentGetDocumentContentData = {
+    body?: never;
+    path: {
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/documents/{document_id}/content';
+};
+
+export type ApiV1DocumentsDocumentIdContentGetDocumentContentErrors = {
+    /**
+     * Validation Exception
+     */
+    400: {
+        detail: string;
+        extra?: null | {
+            [key: string]: unknown;
+        } | Array<unknown>;
+        status_code: number;
+    };
+};
+
+export type ApiV1DocumentsDocumentIdContentGetDocumentContentError = ApiV1DocumentsDocumentIdContentGetDocumentContentErrors[keyof ApiV1DocumentsDocumentIdContentGetDocumentContentErrors];
+
+export type ApiV1DocumentsDocumentIdContentGetDocumentContentResponses = {
+    /**
+     * Request fulfilled, document follows
+     */
+    200: string;
+};
+
+export type ApiV1DocumentsDocumentIdContentGetDocumentContentResponse = ApiV1DocumentsDocumentIdContentGetDocumentContentResponses[keyof ApiV1DocumentsDocumentIdContentGetDocumentContentResponses];
 
 export type ApiV1DocumentsDocumentIdDownloadGetDownloadUrlData = {
     body?: never;

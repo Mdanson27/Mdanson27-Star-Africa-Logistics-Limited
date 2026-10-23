@@ -13567,6 +13567,76 @@
         "summary": "CreateDocument"
       }
     },
+    "/api/v1/documents/local-upload/{token}": {
+      "put": {
+        "deprecated": false,
+        "operationId": "ApiV1DocumentsLocalUploadTokenUploadLocalDocument",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "UploadLocalDocument"
+      }
+    },
     "/api/v1/documents/presign": {
       "post": {
         "deprecated": false,
@@ -13633,6 +13703,27 @@
           }
         },
         "summary": "CreateUploadUrl"
+      }
+    },
+    "/api/v1/documents/storage-status": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DocumentsStorageStatusDocumentStorageStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "DocumentStorageStatus"
       }
     },
     "/api/v1/documents/{document_id}": {
@@ -13781,6 +13872,76 @@
           }
         },
         "summary": "UpdateDocument"
+      }
+    },
+    "/api/v1/documents/{document_id}/content": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1DocumentsDocumentIdContentGetDocumentContent",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetDocumentContent"
       }
     },
     "/api/v1/documents/{document_id}/download": {
