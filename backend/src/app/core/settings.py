@@ -20,6 +20,7 @@ class AppSettings(BaseSettings):
     NEON_AUTH_BASE_URL: str = ""
     NEON_AUTH_JWKS_URL: str = ""
     PLATFORM_ADMIN_EMAIL: str = "automindsafrica@gmail.com"
+    PLATFORM_ADMIN_EMAILS: str = ""
 
     # ── Cache (Valkey) ────────────────────────────────────────────────────────
     VALKEY_URL: str | None = None
@@ -98,7 +99,11 @@ class AppSettings(BaseSettings):
 
     @property
     def admin_emails(self) -> set[str]:
-        return {self.PLATFORM_ADMIN_EMAIL.strip().lower()}
+        emails = {self.PLATFORM_ADMIN_EMAIL.strip().lower()}
+        emails.update(
+            item.strip().lower() for item in self.PLATFORM_ADMIN_EMAILS.split(",") if item.strip()
+        )
+        return {email for email in emails if email}
 
     @property
     def platform_admin_email(self) -> str:

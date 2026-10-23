@@ -91,7 +91,7 @@ class JWTAuthGuard:
         # AutoMinds platform administrator. Local HS256 tokens are accepted only
         # outside production and honor their explicit is_superuser claim.
         is_super: bool = (
-            bool(email and email == settings.platform_admin_email)
+            bool(email and email in settings.admin_emails)
             if token_is_neon
             else bool(payload.get("is_superuser", False))
         )

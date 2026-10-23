@@ -119,7 +119,7 @@ class AuthController(Controller):
         if not email:
             raise NotAuthorizedException("Authenticated email is required.")
 
-        is_platform_admin = email == settings.platform_admin_email
+        is_platform_admin = email in settings.admin_emails
         if settings.NEON_AUTH_JWKS_URL and not is_platform_admin:
             employee = (
                 await db_session.execute(
