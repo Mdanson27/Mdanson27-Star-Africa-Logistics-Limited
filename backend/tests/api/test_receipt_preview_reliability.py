@@ -31,9 +31,6 @@ def mock_receipt_storage(monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
     monkeypatch.setattr("app.domain.business.services.object_exists_async", exists)
     monkeypatch.setattr("app.domain.business.services.presign_download", url)
     monkeypatch.setattr(
-        "app.presentation.api.v1.commercial_documents_controller.presign_download", url
-    )
-    monkeypatch.setattr(
         "app.presentation.api.v1.commercial_documents_controller.object_exists_async", exists
     )
     monkeypatch.setattr(

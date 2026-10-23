@@ -10,6 +10,16 @@ const pdfBlobUrl = async (path: string): Promise<string> => {
   return URL.createObjectURL(await response.blob());
 };
 
+const securedDocumentUrl = async (url: string): Promise<string> => {
+  if (/^https?:\/\//i.test(url)) return url;
+  const target = new URL(url, `${getApiBaseUrl()}/`).toString();
+  const response = await authenticatedFetch(target, {
+    headers: { Accept: "application/pdf" },
+  });
+  if (!response.ok) throw new Error("The saved PDF is temporarily unavailable.");
+  return URL.createObjectURL(await response.blob());
+};
+
 const optionalRead = async <T>(loader: () => Promise<T>, fallback: T): Promise<T> => {
   try {
     return await loader();
@@ -280,6 +290,7 @@ export interface StatementEntry {
 }
 
 export const businessApi = {
+  resolveDocumentUrl: securedDocumentUrl,
   summary: () => request<BusinessSummary>("/business/summary"),
   clients: () => request<ClientRecord[]>("/business/clients"),
   createClient: (body: Record<string, unknown>) =>

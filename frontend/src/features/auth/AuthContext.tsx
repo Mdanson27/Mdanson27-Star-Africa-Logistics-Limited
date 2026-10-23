@@ -27,7 +27,7 @@ export interface AuthUser {
 const PLATFORM_ADMIN_EMAIL = (import.meta.env.VITE_PLATFORM_ADMIN_EMAIL || "automindsafrica@gmail.com").trim().toLowerCase();
 const AUTH_USER_CACHE_KEY = "starafrica.authUser";
 
-export type AuthState = "booting" | "signed_out" | "authenticating" | "verifying_neon" | "verifying_api" | "verified" | "auth_failed";
+export type AuthState = "booting" | "signed_out" | "authenticating" | "verifying_neon" | "verifying_api" | "reconnecting" | "verified" | "auth_failed";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -119,12 +119,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    clearCachedAccessToken();
-    clearCachedUser();
-    setUser(null);
-    setToken(null);
+    // Keep an already-verified workspace mounted while re-checking the session.
+    // Initial boot still has no user/token, so protected UI cannot mount until the
+    // first Neon + Star Africa verification succeeds.
     setIsLoading(true);
     setAuthState("verifying_neon");
+
+    let retrying = false;
 
     try {
       const sessionResult = await getNeonAuthClient().getSession();
@@ -134,7 +135,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         | null
         | undefined;
 
-      if (sessionResult.error || !sessionData?.session || !sessionData.user) {
+      if (sessionResult.error) {
+        throw new ApiError("Neon session verification is temporarily unavailable.", 0, sessionResult.error);
+      }
+      if (!sessionData?.session || !sessionData.user) {
         clearSession();
         return;
       }
@@ -163,17 +167,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(sessionToken);
       setUser(mappedUser);
       setAuthState("verified");
-    } catch {
-      try {
-        if (isNeonAuthConfigured) await getNeonAuthClient().signOut();
-      } catch {
-        // A failed sign-out must not preserve an unverified local session.
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : undefined;
+      const definitiveAuthFailure = status === 401 || status === 403;
+
+      if (definitiveAuthFailure) {
+        try {
+          if (isNeonAuthConfigured) await getNeonAuthClient().signOut();
+        } catch {
+          // Local auth state must still be cleared if remote sign-out is unavailable.
+        }
+        clearSession();
+        setAuthState("auth_failed");
+      } else {
+        // A temporary API, tunnel, database, or network outage must never destroy
+        // an otherwise-valid Neon session. Stay on the secure verification shell
+        // and retry automatically until the backend can confirm the session.
+        retrying = true;
+        setAuthState("reconnecting");
       }
-      clearSession();
-      setAuthState("auth_failed");
     } finally {
       clearAuthCallbackVerifier();
-      setIsLoading(false);
+      setIsLoading(retrying);
     }
   }, [clearSession]);
 
@@ -182,24 +197,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refreshProfile]);
 
   useEffect(() => {
+    if (authState !== "reconnecting") return;
+
+    const retryTimer = window.setTimeout(() => {
+      void refreshProfile();
+    }, 5_000);
+
+    return () => window.clearTimeout(retryTimer);
+  }, [authState, refreshProfile]);
+
+  useEffect(() => {
     const handleExpiredSession = () => {
-      void (async () => {
-        try {
-          if (isNeonAuthConfigured) await getNeonAuthClient().signOut();
-        } catch {
-          // Local state must still be cleared if remote sign-out is unavailable.
-        } finally {
-          clearSession();
-          setAuthState("auth_failed");
-          setIsLoading(false);
-        }
-      })();
+      // A 401 from one API request is not enough evidence to destroy the user's
+      // Neon session. Re-run the strict Neon + Star Africa verification gate.
+      // refreshProfile only signs out when that gate proves the session invalid;
+      // temporary tunnel/server/network failures enter reconnecting instead.
+      void refreshProfile();
     };
 
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleExpiredSession);
     return () =>
       window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleExpiredSession);
-  }, [clearSession]);
+  }, [refreshProfile]);
 
   const login = async (email: string, password: string) => {
     if (!isNeonAuthConfigured) {
@@ -345,7 +364,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         token,
         isLoading,
-        isAuthenticated: authState === "verified" && !!user && !!token,
+        isAuthenticated:
+          ["verified", "verifying_neon", "verifying_api", "reconnecting"].includes(authState) &&
+          !!user &&
+          !!token,
         authState,
         isAdmin,
         isPlatformAdmin,

@@ -6,6 +6,8 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from app.core.settings import settings
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -32,9 +34,6 @@ def mock_commercial_storage(monkeypatch):
     monkeypatch.setattr("app.domain.business.services.put_object_bytes_async", put)
     monkeypatch.setattr("app.domain.business.services.object_exists_async", exists)
     monkeypatch.setattr("app.domain.business.services.presign_download", url)
-    monkeypatch.setattr(
-        "app.presentation.api.v1.commercial_documents_controller.presign_download", url
-    )
     monkeypatch.setattr(
         "app.presentation.api.v1.commercial_documents_controller.object_exists_async", exists
     )
@@ -412,6 +411,7 @@ class TestBusinessPreviewWithoutStorage:
         monkeypatch,
     ) -> None:
         monkeypatch.setattr("app.domain.business.services.storage_configured", lambda: False)
+        monkeypatch.setattr("app.domain.business.services.local_storage_ready", lambda: False)
         suffix = uuid.uuid4().hex[:8]
         headers = {"Authorization": f"Bearer {registered_user['token']}"}
 
@@ -465,3 +465,38 @@ class TestBusinessPreviewWithoutStorage:
         )
         assert conversion.status_code == 201, conversion.text
         assert conversion.json()["source_quotation_id"] == quote["id"]
+
+
+async def test_client_statement_uses_persistent_local_storage_fallback(
+    async_client: AsyncClient,
+    registered_user: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(settings, "DOCUMENTS_LOCAL_DIR", str(tmp_path))
+    monkeypatch.setattr("app.domain.business.services.storage_configured", lambda: False)
+
+    suffix = uuid.uuid4().hex[:8]
+    headers = {"Authorization": f"Bearer {registered_user['token']}"}
+    client_response = await async_client.post(
+        "/api/v1/business/clients",
+        headers=headers,
+        json={"name": f"Local Statement Client {suffix}"},
+    )
+    assert client_response.status_code == 201, client_response.text
+    client = client_response.json()
+
+    generated = await async_client.post(
+        f"/api/v1/business/clients/{client['id']}/statement/document",
+        headers=headers,
+    )
+    assert generated.status_code in {200, 201}, generated.text
+    payload = generated.json()
+    assert payload["stored"] is True
+    assert payload["document_id"]
+    assert payload["download_url"] == f"/api/v1/documents/{payload['document_id']}/content"
+
+    content = await async_client.get(payload["download_url"], headers=headers)
+    assert content.status_code == 200, content.text
+    assert content.headers["content-type"].startswith("application/pdf")
+    assert content.content.startswith(b"%PDF")
