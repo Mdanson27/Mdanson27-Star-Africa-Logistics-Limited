@@ -39,6 +39,22 @@ const ALL_TABS: NavItem[] = [
   "settings",
 ];
 
+interface PersistentPanelProps {
+  id: NavItem;
+  currentTab: NavItem;
+  children: React.ReactNode;
+}
+
+const PersistentPanel: React.FC<PersistentPanelProps> = ({ id, currentTab, children }) => (
+  <section
+    className={currentTab === id ? "block" : "hidden"}
+    aria-hidden={currentTab !== id}
+    data-workspace-section={id}
+  >
+    {children}
+  </section>
+);
+
 const AuthenticatedApp: React.FC = () => {
   const { isAuthenticated, authState, isPlatformAdmin, refreshProfile } = useAuth();
   const { refreshHealth } = useSystemHealth();
@@ -71,26 +87,50 @@ const AuthenticatedApp: React.FC = () => {
     setIsRefreshing(true);
     try {
       await Promise.allSettled([refreshProfile(), ...(isPlatformAdmin ? [refreshHealth()] : [])]);
+      window.dispatchEvent(new CustomEvent("starafrica:refresh-sections"));
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const panels: Array<{ id: NavItem; node: React.ReactNode }> = [
+    ...(isPlatformAdmin
+      ? [
+          { id: "dashboard" as NavItem, node: <DashboardPage /> },
+          { id: "users" as NavItem, node: <UsersPage /> },
+          { id: "telemetry" as NavItem, node: <div className="max-w-4xl"><TelemetryStream /></div> },
+          { id: "people" as NavItem, node: <PeoplePayrollPage /> },
+        ]
+      : []),
+    { id: "home", node: <HomePage onNavigate={selectTab} /> },
+    { id: "projects", node: <ProjectsPage /> },
+    { id: "inventory", node: <InventoryPage /> },
+    { id: "bids", node: <BidsPage onNavigate={selectTab} /> },
+    { id: "documents", node: <DocumentsPage /> },
+    { id: "business", node: <BusinessPage /> },
+    { id: "tasks", node: <TasksPage /> },
+    { id: "reports", node: <ReportsPage /> },
+    { id: "settings", node: <SettingsPage /> },
+  ];
+
+  const orderedPanels = [...panels].sort((left, right) => {
+    if (left.id === currentTab) return -1;
+    if (right.id === currentTab) return 1;
+    return 0;
+  });
+
   return (
-    <AppShell currentTab={currentTab} onSelectTab={selectTab} onRefreshAll={handleRefresh} isRefreshing={isRefreshing}>
-      {currentTab === "dashboard" && isPlatformAdmin && <DashboardPage />}
-      {currentTab === "users" && isPlatformAdmin && <UsersPage />}
-      {currentTab === "telemetry" && isPlatformAdmin && <div className="max-w-4xl"><TelemetryStream /></div>}
-      {currentTab === "people" && isPlatformAdmin && <PeoplePayrollPage />}
-      {currentTab === "home" && <HomePage onNavigate={selectTab} />}
-      {currentTab === "projects" && <ProjectsPage />}
-      {currentTab === "inventory" && <InventoryPage />}
-      {currentTab === "bids" && <BidsPage onNavigate={selectTab} />}
-      {currentTab === "documents" && <DocumentsPage />}
-      {currentTab === "business" && <BusinessPage />}
-      {currentTab === "tasks" && <TasksPage />}
-      {currentTab === "reports" && <ReportsPage />}
-      {currentTab === "settings" && <SettingsPage />}
+    <AppShell
+      currentTab={currentTab}
+      onSelectTab={selectTab}
+      onRefreshAll={handleRefresh}
+      isRefreshing={isRefreshing}
+    >
+      {orderedPanels.map((panel) => (
+        <PersistentPanel key={panel.id} id={panel.id} currentTab={currentTab}>
+          {panel.node}
+        </PersistentPanel>
+      ))}
     </AppShell>
   );
 };
