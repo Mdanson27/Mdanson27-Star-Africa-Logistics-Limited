@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppShell } from "@/components/layout/AppShell";
@@ -39,6 +39,22 @@ const ALL_TABS: NavItem[] = [
   "settings",
 ];
 
+interface PersistentPanelProps {
+  id: NavItem;
+  currentTab: NavItem;
+  children: React.ReactNode;
+}
+
+const PersistentPanel: React.FC<PersistentPanelProps> = ({ id, currentTab, children }) => (
+  <section
+    className={currentTab === id ? "block" : "hidden"}
+    aria-hidden={currentTab !== id}
+    data-workspace-section={id}
+  >
+    {children}
+  </section>
+);
+
 const AuthenticatedApp: React.FC = () => {
   const { isAuthenticated, authState, isPlatformAdmin, refreshProfile } = useAuth();
   const { refreshHealth } = useSystemHealth();
@@ -71,26 +87,56 @@ const AuthenticatedApp: React.FC = () => {
     setIsRefreshing(true);
     try {
       await Promise.allSettled([refreshProfile(), ...(isPlatformAdmin ? [refreshHealth()] : [])]);
+      window.dispatchEvent(new CustomEvent("starafrica:refresh-sections"));
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const panels = useMemo(
+    () => [
+      ...(isPlatformAdmin
+        ? [
+            { id: "dashboard" as NavItem, node: <DashboardPage /> },
+            { id: "users" as NavItem, node: <UsersPage /> },
+            { id: "telemetry" as NavItem, node: <div className="max-w-4xl"><TelemetryStream /></div> },
+            { id: "people" as NavItem, node: <PeoplePayrollPage /> },
+          ]
+        : []),
+      { id: "home" as NavItem, node: <HomePage onNavigate={selectTab} /> },
+      { id: "projects" as NavItem, node: <ProjectsPage /> },
+      { id: "inventory" as NavItem, node: <InventoryPage /> },
+      { id: "bids" as NavItem, node: <BidsPage onNavigate={selectTab} /> },
+      { id: "documents" as NavItem, node: <DocumentsPage /> },
+      { id: "business" as NavItem, node: <BusinessPage /> },
+      { id: "tasks" as NavItem, node: <TasksPage /> },
+      { id: "reports" as NavItem, node: <ReportsPage /> },
+      { id: "settings" as NavItem, node: <SettingsPage /> },
+    ],
+    [isPlatformAdmin],
+  );
+
+  const orderedPanels = useMemo(
+    () => [...panels].sort((left, right) => {
+      if (left.id === currentTab) return -1;
+      if (right.id === currentTab) return 1;
+      return 0;
+    }),
+    [currentTab, panels],
+  );
+
   return (
-    <AppShell currentTab={currentTab} onSelectTab={selectTab} onRefreshAll={handleRefresh} isRefreshing={isRefreshing}>
-      {currentTab === "dashboard" && isPlatformAdmin && <DashboardPage />}
-      {currentTab === "users" && isPlatformAdmin && <UsersPage />}
-      {currentTab === "telemetry" && isPlatformAdmin && <div className="max-w-4xl"><TelemetryStream /></div>}
-      {currentTab === "people" && isPlatformAdmin && <PeoplePayrollPage />}
-      {currentTab === "home" && <HomePage onNavigate={selectTab} />}
-      {currentTab === "projects" && <ProjectsPage />}
-      {currentTab === "inventory" && <InventoryPage />}
-      {currentTab === "bids" && <BidsPage onNavigate={selectTab} />}
-      {currentTab === "documents" && <DocumentsPage />}
-      {currentTab === "business" && <BusinessPage />}
-      {currentTab === "tasks" && <TasksPage />}
-      {currentTab === "reports" && <ReportsPage />}
-      {currentTab === "settings" && <SettingsPage />}
+    <AppShell
+      currentTab={currentTab}
+      onSelectTab={selectTab}
+      onRefreshAll={handleRefresh}
+      isRefreshing={isRefreshing}
+    >
+      {orderedPanels.map((panel) => (
+        <PersistentPanel key={panel.id} id={panel.id} currentTab={currentTab}>
+          {panel.node}
+        </PersistentPanel>
+      ))}
     </AppShell>
   );
 };
