@@ -1,4 +1,5 @@
-import { ApiError, apiRequest } from "@/lib/api";
+import { ApiError, apiRequest, getApiBaseUrl } from "@/lib/api";
+import { getAccessToken } from "@/lib/authSession";
 
 const request = apiRequest;
 
@@ -463,6 +464,8 @@ export const workspaceApi = {
         ? `/documents?project_id=${encodeURIComponent(projectId)}`
         : "/documents",
     ),
+  documentStorageStatus: () =>
+    request<{ configured: boolean; provider: string }>("/documents/storage-status"),
   createUploadUrl: (body: {
     filename: string;
     content_type: string;
@@ -485,8 +488,16 @@ export const workspaceApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
-  downloadDocument: (id: string) =>
-    request<{ url: string }>(`/documents/${id}/download`),
+  downloadDocument: async (id: string) => {
+    const result = await request<{ url: string }>(`/documents/${id}/download`);
+    if (!result.url.startsWith("/")) return result;
+    const token = await getAccessToken();
+    const response = await fetch(new URL(result.url, getApiBaseUrl()), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new ApiError("The document could not be opened.", response.status);
+    return { url: URL.createObjectURL(await response.blob()) };
+  },
 
   businessSummary: () => request<BusinessSummary>("/business/summary"),
   clients: () => request<ClientRecord[]>("/business/clients"),
@@ -555,9 +566,15 @@ export const workspaceApi = {
 };
 
 export async function uploadToPresignedUrl(url: string, file: File): Promise<void> {
-  const response = await fetch(url, {
+  const isLocalApiUpload = url.startsWith("/");
+  const token = isLocalApiUpload ? await getAccessToken() : null;
+  const target = isLocalApiUpload ? new URL(url, getApiBaseUrl()).toString() : url;
+  const response = await fetch(target, {
     method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: file,
   });
   if (!response.ok) {

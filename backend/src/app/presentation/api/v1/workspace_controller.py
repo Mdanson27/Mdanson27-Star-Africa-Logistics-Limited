@@ -7,13 +7,23 @@ from decimal import Decimal
 from typing import Any, ClassVar
 
 import structlog
-from litestar import Controller, Request, delete, get, patch, post
+from litestar import Controller, Request, Response, delete, get, patch, post, put
 from litestar.exceptions import ClientException, NotFoundException
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.storage import presign_download, presign_upload, storage_configured
+from app.core.storage import (
+    decode_local_key,
+    encode_local_key,
+    get_object_bytes_async,
+    local_storage_ready,
+    presign_download,
+    presign_upload,
+    put_object_bytes_async,
+    storage_configured,
+    storage_provider,
+)
 from app.domain.audit.models import AuditLog
 from app.domain.business.models import (
     Client,
@@ -1050,22 +1060,56 @@ class DocumentsController(Controller):
         rows = (await db_session.execute(stmt)).scalars().all()
         return [_document_read(row) for row in rows]
 
+    @get(path="/storage-status")
+    async def document_storage_status(self) -> dict[str, object]:
+        local_ready = local_storage_ready()
+        return {
+            "configured": storage_configured() or local_ready,
+            "provider": storage_provider()
+            if storage_configured() or local_ready
+            else "Unavailable",
+            "primary": storage_configured(),
+            "fallback": local_ready,
+        }
+
     @post(path="/presign")
     async def create_upload_url(
         self,
         request: Request,
         data: DocumentPresignRequest,
     ) -> DocumentPresignResponse:
-        if not storage_configured():
-            raise ClientException(detail="Document storage is not configured.", status_code=503)
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", data.filename).strip("-") or "document"
         owner = re.sub(r"[^A-Za-z0-9._-]+", "-", _email(request))
         project_part = str(data.project_id) if data.project_id else "general"
-        storage_key = f"documents/{project_part}/{owner}/{uuid.uuid4()}-{safe_name}"
-        return DocumentPresignResponse(
-            upload_url=presign_upload(storage_key, data.content_type),
-            storage_key=storage_key,
+        if storage_configured():
+            storage_key = f"documents/{project_part}/{owner}/{uuid.uuid4()}-{safe_name}"
+            upload_url = presign_upload(storage_key, data.content_type)
+        elif local_storage_ready():
+            storage_key = f"documents/local/{project_part}/{owner}/{uuid.uuid4()}-{safe_name}"
+            upload_url = f"/api/v1/documents/local-upload/{encode_local_key(storage_key)}"
+        else:
+            raise ClientException(detail="Document storage is unavailable.", status_code=503)
+        return DocumentPresignResponse(upload_url=upload_url, storage_key=storage_key)
+
+    @put(path="/local-upload/{token:str}", status_code=HTTP_200_OK)
+    async def upload_local_document(
+        self,
+        token: str,
+        request: Request,
+    ) -> dict[str, object]:
+        try:
+            storage_key = decode_local_key(token)
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ClientException(detail="Invalid upload target.", status_code=400) from exc
+        content = await request.body()
+        if not content:
+            raise ClientException(detail="The uploaded file is empty.", status_code=400)
+        await put_object_bytes_async(
+            storage_key,
+            content,
+            request.headers.get("content-type", "application/octet-stream"),
         )
+        return {"ok": True, "size_bytes": len(content)}
 
     @post(status_code=HTTP_201_CREATED)
     async def create_document(
@@ -1160,6 +1204,25 @@ class DocumentsController(Controller):
         await db_session.refresh(item)
         return _document_read(item)
 
+    @get(path="/{document_id:uuid}/content")
+    async def get_document_content(
+        self,
+        document_id: uuid.UUID,
+        db_session: AsyncSession,
+    ) -> Response[bytes]:
+        item = await db_session.get(Document, document_id)
+        if item is None or item.is_deleted:
+            raise NotFoundException(detail="Document not found.")
+        try:
+            content = await get_object_bytes_async(item.storage_key)
+        except (FileNotFoundError, ClientException) as exc:
+            raise NotFoundException(detail="Stored document file was not found.") from exc
+        return Response(
+            content=content,
+            media_type=item.content_type or "application/octet-stream",
+            headers={"Content-Disposition": f'inline; filename="{item.original_filename}"'},
+        )
+
     @get(path="/{document_id:uuid}/download")
     async def get_download_url(
         self,
@@ -1169,6 +1232,8 @@ class DocumentsController(Controller):
         item = await db_session.get(Document, document_id)
         if item is None or item.is_deleted:
             raise NotFoundException(detail="Document not found.")
+        if item.storage_key.startswith("documents/local/"):
+            return DownloadResponse(url=f"/api/v1/documents/{document_id}/content")
         return DownloadResponse(url=presign_download(item.storage_key))
 
     @delete(path="/{document_id:uuid}", status_code=HTTP_200_OK)
