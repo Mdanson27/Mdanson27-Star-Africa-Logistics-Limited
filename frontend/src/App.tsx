@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppShell } from "@/components/layout/AppShell";
@@ -93,37 +93,31 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
-  const panels = useMemo(
-    () => [
-      ...(isPlatformAdmin
-        ? [
-            { id: "dashboard" as NavItem, node: <DashboardPage /> },
-            { id: "users" as NavItem, node: <UsersPage /> },
-            { id: "telemetry" as NavItem, node: <div className="max-w-4xl"><TelemetryStream /></div> },
-            { id: "people" as NavItem, node: <PeoplePayrollPage /> },
-          ]
-        : []),
-      { id: "home" as NavItem, node: <HomePage onNavigate={selectTab} /> },
-      { id: "projects" as NavItem, node: <ProjectsPage /> },
-      { id: "inventory" as NavItem, node: <InventoryPage /> },
-      { id: "bids" as NavItem, node: <BidsPage onNavigate={selectTab} /> },
-      { id: "documents" as NavItem, node: <DocumentsPage /> },
-      { id: "business" as NavItem, node: <BusinessPage /> },
-      { id: "tasks" as NavItem, node: <TasksPage /> },
-      { id: "reports" as NavItem, node: <ReportsPage /> },
-      { id: "settings" as NavItem, node: <SettingsPage /> },
-    ],
-    [isPlatformAdmin],
-  );
+  const panels: Array<{ id: NavItem; node: React.ReactNode }> = [
+    ...(isPlatformAdmin
+      ? [
+          { id: "dashboard" as NavItem, node: <DashboardPage /> },
+          { id: "users" as NavItem, node: <UsersPage /> },
+          { id: "telemetry" as NavItem, node: <div className="max-w-4xl"><TelemetryStream /></div> },
+          { id: "people" as NavItem, node: <PeoplePayrollPage /> },
+        ]
+      : []),
+    { id: "home", node: <HomePage onNavigate={selectTab} /> },
+    { id: "projects", node: <ProjectsPage /> },
+    { id: "inventory", node: <InventoryPage /> },
+    { id: "bids", node: <BidsPage onNavigate={selectTab} /> },
+    { id: "documents", node: <DocumentsPage /> },
+    { id: "business", node: <BusinessPage /> },
+    { id: "tasks", node: <TasksPage /> },
+    { id: "reports", node: <ReportsPage /> },
+    { id: "settings", node: <SettingsPage /> },
+  ];
 
-  const orderedPanels = useMemo(
-    () => [...panels].sort((left, right) => {
-      if (left.id === currentTab) return -1;
-      if (right.id === currentTab) return 1;
-      return 0;
-    }),
-    [currentTab, panels],
-  );
+  const orderedPanels = [...panels].sort((left, right) => {
+    if (left.id === currentTab) return -1;
+    if (right.id === currentTab) return 1;
+    return 0;
+  });
 
   return (
     <AppShell
